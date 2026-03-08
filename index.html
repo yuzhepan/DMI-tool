@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DMI Frontend Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    /* =========================================================
+       UI 美化 CSS 区域
+       ========================================================= */
+    :root {
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --secondary: #64748b;
+      --secondary-hover: #475569;
+      --bg: #f1f5f9;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --radius: 12px;
+    }
+
+    body { 
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+  margin: 0; 
+  padding: 30px; 
+  background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+  color: var(--text-main); 
+  line-height: 1.5;
+}
+
+.dashboard-header {
+  margin-bottom: 28px;
+  padding-left: 10px;
+}
+
+h1 {
+  margin: 0 0 10px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 34px;
+  color: #0f172a;
+  font-weight: 800;
+  letter-spacing: -0.9px;
+  line-height: 1.1;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-size: 18px;
+  color: #1e293b;
+  font-weight: 700;
+  border-bottom: 2px solid #f1f5f9;
+  padding-bottom: 8px;
+}
+
+    .sub { color: var(--text-muted); font-size: 14px; margin: 0; }
+
+    /* 全局网格布局: 左侧固定宽度，右侧自适应 */
+    .grid { 
+      display: grid; 
+      grid-template-columns: 360px 1fr; 
+      gap: 24px; 
+      align-items: start;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    /* 卡片设计 */
+    .card { 
+      background: var(--card-bg); 
+      border-radius: var(--radius); 
+      padding: 24px; 
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.02); 
+      margin-bottom: 24px;
+    }
+
+    /* 左侧表单排版 */
+    .row { 
+      display: grid; 
+      grid-template-columns: 1fr 100px 80px; /* 三列：标签、输入框、单位/按钮 */
+      gap: 12px; 
+      align-items: center; 
+      margin-bottom: 12px; 
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .row:hover { background: #f8fafc; }
+    .row label { font-size: 13.5px; font-weight: 500; color: #475569; }
+    .small { color: #94a3b8; font-size: 12px; }
+
+    .food-link {
+     cursor: pointer;
+     color: #2563eb;
+     font-weight: 600;
+     text-decoration: none;
+     border-bottom: 1px dashed rgba(37, 99, 235, 0.45);
+     transition: all 0.2s ease;
+    }
+
+    .food-link:hover {
+     color: #1d4ed8;
+     border-bottom-color: #1d4ed8;
+     }
+
+    /* 控件样式 */
+    input, select { 
+      padding: 8px 12px; 
+      border: 1px solid var(--border); 
+      border-radius: 6px; 
+      font-size: 14px; 
+      outline: none;
+      transition: all 0.2s;
+      width: 100%;
+      box-sizing: border-box;
+      color: #334155;
+    }
+    input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+    
+    button { 
+      padding: 8px 16px; 
+      cursor: pointer; 
+      background: var(--primary); 
+      color: white; 
+      border: none; 
+      border-radius: 6px; 
+      font-size: 14px; 
+      font-weight: 500;
+      transition: background 0.2s, transform 0.1s;
+      width: 100%;
+    }
+    button:hover { background: var(--primary-hover); }
+    button:active { transform: scale(0.98); }
+    button.secondary { background: var(--secondary); }
+    button.secondary:hover { background: var(--secondary-hover); }
+
+    .action-buttons { display: flex; gap: 12px; margin-top: 24px; }
+    .action-buttons button { padding: 12px; font-size: 15px; }
+
+    /* 总分展示大字 */
+    .score-container { text-align: center; padding: 20px 0; }
+    .score { 
+      font-size: 56px; 
+      font-weight: 800; 
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    #scoreCI { font-size: 13px; color: #64748b; font-weight: 500; }
+
+    /* 核心修改：图表双列布局，解决占用太大空间的问题 */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    
+    /* 限制雷达图最大宽度，防止 SVG 填满容器 */
+    .radar-wrapper { 
+      max-width: 260px; 
+      margin: 20px auto 0; 
+    }
+    svg { width: 100%; height: auto; } /* 配合 wrapper 食用 */
+
+    /* 条形图美化 */
+    .bar-item { margin-bottom: 16px; }
+    .bar-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; }
+    .bar-title { font-weight: 600; color: #334155; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: #64748b;}
+    .bar-bg { background: #f1f5f9; border-radius: 999px; overflow: hidden; height: 10px; }
+    .bar-fill { height: 10px; border-radius: 999px; transition: width 0.5s ease-out; }
+
+    /* 表格美化 */
+    .table-container { overflow-x: auto; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13.5px; }
+    th { 
+      background: #f8fafc; 
+      color: #475569; 
+      font-weight: 600; 
+      text-transform: uppercase; 
+      font-size: 12px; 
+      letter-spacing: 0.5px; 
+      padding: 12px; 
+      border-bottom: 2px solid #e2e8f0;
+      text-align: right;
+    }
+    th:first-child, td:first-child { text-align: left; }
+    td { 
+      padding: 12px; 
+      border-bottom: 1px solid #f1f5f9; 
+      color: #334155; 
+      text-align: right;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; /* 数字对齐 */
+    }
+    td:first-child { font-family: inherit; font-weight: 500; }
+    tr:hover td { background: #f8fafc; }
+
+  </style>
+</head>
+<body>
+
+  <div class="dashboard-header">
+    <h1>DMI Frontend Prototype</h1>
+    <p class="sub">Pattern-specific DMI calculator with component probabilities, deficit foods, and limiting foods.</p>
+  </div>
+
+  <div class="grid">
+    <!-- 左侧：输入区域 -->
+    <div class="card" style="position: sticky; top: 30px;">
+      <h2>User Inputs</h2>
+
+      <div class="row" style="grid-template-columns: 1fr 140px 60px;">
+        <label for="pattern">Pattern</label>
+        <select id="pattern"></select>
+        <button id="loadPatternBtn" class="secondary" type="button">Load</button>
+      </div>
+
+      <div class="row" style="grid-template-columns: 1fr 100px 80px;">
+        <label for="female">Sex</label>
+        <select id="female">
+          <option value="0">Male</option>
+          <option value="1">Female</option>
+        </select>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input id="age" type="number" value="30" min="1" step="1" title="Age" placeholder="Age" />
+        </div>
+      </div>
+
+      <div class="row" style="grid-template-columns: 1fr 100px 80px;">
+        <label for="energy_kcal">Energy (kcal)</label>
+        <input id="energy_kcal" type="number" value="2000" min="500" step="1" />
+        <button id="autoEnergyBtn" class="secondary" type="button">Auto</button>
+      </div>
+
+      <div id="foodInputs" style="margin-top: 16px; border-top: 1px dashed var(--border); padding-top: 16px;"></div>
+
+      <div class="action-buttons">
+        <button id="calcBtn" type="button">Calculate DMI</button>
+        <button id="demoBtn" class="secondary" type="button">Demo values</button>
+      </div>
+
+      <div class="action-buttons">
+      <button id="downloadCurrentCsvBtn" class="secondary" type="button">Download current CSV</button>
+      <button id="downloadCurrentJsonBtn" class="secondary" type="button">Download current JSON</button>
+      </div>
+
+      <div class="action-buttons">
+      <button id="downloadAllCsvBtn" class="secondary" type="button">Export all local history</button>
+      <button id="clearLocalHistoryBtn" class="secondary" type="button">Clear local history</button>
+      </div>
+
+      <p class="small" style="margin-top:16px; line-height: 1.4; color: #94a3b8; text-align: center;">
+        For uncertainty intervals, attach per-food conversion SD or low/high bounds and use Monte Carlo in the browser.
+      </p>
+    </div>
+
+    <!-- 右侧：结果展示区域 -->
+    <div>
+      <div class="card score-container">
+        <h2>Overall DMI Score</h2>
+        <div class="score" id="scoreText">—</div>
+        <div id="scoreCI">Awaiting computation...</div>
+      </div>
+
+      <!-- 核心布局修改：将两个图表并排显示 -->
+      <div class="charts-grid">
+        <div class="card" style="margin-bottom: 0;">
+          <h2>Deficit foods (Top 3)</h2>
+          <div id="deficitBars"></div>
+          <!-- 限制雷达图容器的宽度 -->
+          <div id="deficitRadar" class="radar-wrapper"></div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+          <h2>Limiting foods (Top 3)</h2>
+          <div id="limitingBars"></div>
+          <div id="limitingRadar" class="radar-wrapper"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Component Summary Detail</h2>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Food group</th>
+                <th>Input</th>
+                <th>Prob</th>
+                <th>Prob cap</th>
+                <th>Gap norm</th>
+                <th>DMI gain share</th>
+              </tr>
+            </thead>
+            <tbody id="componentTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="foodModal" style="
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(15,23,42,0.45);
+  z-index:9999;
+  align-items:center;
+  justify-content:center;
+">
+  <div style="
+    background:#fff;
+    width:min(680px, 92vw);
+    border-radius:16px;
+    padding:24px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.2);
+    position:relative;
+  ">
+    <button id="closeFoodModal" style="
+      position:absolute;
+      top:14px;
+      right:14px;
+      width:36px;
+      height:36px;
+      border-radius:999px;
+      border:none;
+      background:#e2e8f0;
+      color:#334155;
+      font-size:18px;
+      cursor:pointer;
+    ">×</button>
+
+    <h2 id="foodModalTitle" style="margin-bottom:12px;">Food group</h2>
+    <div id="foodModalBody" style="color:#475569; line-height:1.7; font-size:15px;"></div>
+  </div>
+</div>
+
+<script>
+// ---------------------------
+// 1) Reference tables
+// ---------------------------
+const REF_TABLES = {
+  AHEI: [
+    { col: 'whole_grains_g', direction: 'positive', W0: 0, T0: 75, U0: null, energy_scaled: true, sex: 'F', max_pts: 10, unit: 'g' },
+    { col: 'whole_grains_g', direction: 'positive', W0: 0, T0: 90, U0: null, energy_scaled: true, sex: 'M', max_pts: 10, unit: 'g' },
+    { col: 'vegetables_g', direction: 'positive', W0: 0, T0: 600, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'fruits_g', direction: 'positive', W0: 0, T0: 472, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'nuts_g', direction: 'positive', W0: 0, T0: 28.35, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'legumes_g', direction: 'positive', W0: 0, T0: 28.35, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'red_meat_g', direction: 'negative', W0: 169.5, T0: 0, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'processed_meat_g', direction: 'negative', W0: 64.5, T0: 0, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'ssb_juice_g', direction: 'negative', W0: 248, T0: 0, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'sodium_mg', direction: 'negative', W0: 3337, T0: 1112, U0: null, energy_scaled: false, sex: 'F', max_pts: 10, unit: 'mg' },
+    { col: 'sodium_mg', direction: 'negative', W0: 5271, T0: 1612, U0: null, energy_scaled: false, sex: 'M', max_pts: 10, unit: 'mg' },
+    { col: 'lc_n3_pctE', direction: 'positive', W0: 0.0, T0: 0.12, U0: null, energy_scaled: false, sex: 'both', max_pts: 10, unit: '%E' },
+    { col: 'pufa_pctE', direction: 'positive', W0: 2.0, T0: 10.0, U0: null, energy_scaled: false, sex: 'both', max_pts: 10, unit: '%E' }
+  ],
+  MSDPS: [
+    { col: 'whole_grains_g', direction: 'positive', W0: 0, T0: 120, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'vegetables_g', direction: 'positive', W0: 0, T0: 720, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'fruits_g', direction: 'positive', W0: 0, T0: 354, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'dairy_g', direction: 'positive', W0: 0, T0: 490, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'seafood_g', direction: 'positive', W0: 0, T0: 73, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'legumes_g', direction: 'positive', W0: 0, T0: 16.2, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'nuts_g', direction: 'positive', W0: 0, T0: 16.2, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'starchy_g', direction: 'positive', W0: 0, T0: 68.6, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'eggs_g', direction: 'positive', W0: 0, T0: 23.6, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'meats_g', direction: 'negative', W0: 16.1, T0: 0, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' }
+  ],
+  hPDI: [
+    { col: 'whole_grains_g', direction: 'positive', W0: 4.5, T0: 39, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'vegetables_g', direction: 'positive', W0: 180, T0: 570, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'fruits_g', direction: 'positive', W0: 59, T0: 318.6, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'nuts_g', direction: 'positive', W0: 2.8, T0: 20, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'legumes_g', direction: 'positive', W0: 2.8, T0: 20, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'tea_coffee_g', direction: 'positive', W0: 360, T0: 864, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'fruit_juice_g', direction: 'negative', W0: 198.4, T0: 124, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'refined_grains_g', direction: 'negative', W0: 30, T0: 16.5, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'potatoes_g', direction: 'negative', W0: 130.2, T0: 55.8, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'ssb_g', direction: 'negative', W0: 223.2, T0: 24.8, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'dairy_g', direction: 'negative', W0: 563.5, T0: 416.5, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'eggs_g', direction: 'negative', W0: 11, T0: 5.5, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'seafood_g', direction: 'negative', W0: 34, T0: 17, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'red_meat_g', direction: 'negative', W0: 79.1, T0: 33.9, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'processed_meat_g', direction: 'negative', W0: 21.5, T0: 8.6, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' }
+  ],
+  DASH: [
+    { col: 'whole_grains_g', direction: 'positive', W0: 9, T0: 36, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'vegetables_g', direction: 'positive', W0: 264, T0: 552, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'fruits_g', direction: 'positive', W0: 153.4, T0: 448.4, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'nuts_legumes_g', direction: 'positive', W0: 17, T0: 36.9, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'dairy_g', direction: 'positive', W0: 98, T0: 367.5, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'sodium_mg', direction: 'negative', W0: 3500, T0: 2900, U0: null, energy_scaled: false, sex: 'both', max_pts: 5, unit: 'mg' },
+    { col: 'ssb_g', direction: 'negative', W0: 99.2, T0: 24.8, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'meats_g', direction: 'negative', W0: 117, T0: 39, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' }
+  ],
+  DRRD: [
+    { col: 'ps_ratio', direction: 'positive', W0: 0.5, T0: 0.8, U0: null, energy_scaled: false, sex: 'both', max_pts: 5, unit: 'ratio' },
+    { col: 'coffee_g', direction: 'positive', W0: 297.6, T0: 545.6, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'nuts_g', direction: 'positive', W0: 5.7, T0: 20, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'fruits_g', direction: 'positive', W0: 118, T0: 283.2, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'ssb_juice_g', direction: 'negative', W0: 372, T0: 148.8, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'meats_g', direction: 'negative', W0: 93.6, T0: 31.2, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' }
+  ],
+  WCRF: [
+    { col: 'fruits_veg_g', direction: 'positive', W0: 200, T0: 400, U0: null, energy_scaled: true, sex: 'both', max_pts: 0.5, unit: 'g' },
+    { col: 'fiber_g', direction: 'positive', W0: 15, T0: 30, U0: null, energy_scaled: true, sex: 'both', max_pts: 0.5, unit: 'g' },
+    { col: 'ssb_g', direction: 'negative', W0: 250, T0: 0, U0: null, energy_scaled: true, sex: 'both', max_pts: 1, unit: 'g' },
+    { col: 'processed_meat_g', direction: 'negative', W0: 14.2, T0: 0, U0: null, energy_scaled: true, sex: 'both', max_pts: 0.5, unit: 'g' },
+    { col: 'red_meat_g', direction: 'negative', W0: 71, T0: 0, U0: null, energy_scaled: true, sex: 'both', max_pts: 0.5, unit: 'g' }
+  ],
+  PHDI: [
+    { col: 'whole_grains_g', direction: 'positive', W0: 0, T0: 75, U0: null, energy_scaled: true, sex: 'F', max_pts: 10, unit: 'g' },
+    { col: 'whole_grains_g', direction: 'positive', W0: 0, T0: 90, U0: null, energy_scaled: true, sex: 'M', max_pts: 10, unit: 'g' },
+    { col: 'starchy_g', direction: 'negative', W0: 200, T0: 50, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'vegetables_g', direction: 'positive', W0: 0, T0: 300, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'fruits_g', direction: 'positive', W0: 0, T0: 200, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'dairy_g', direction: 'negative', W0: 1000, T0: 250, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'eggs_g', direction: 'negative', W0: 120, T0: 13, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'red_meat_g', direction: 'negative', W0: 100, T0: 14, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'processed_meat_g', direction: 'negative', W0: 100, T0: 14, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'seafood_g', direction: 'positive', W0: 0, T0: 28, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'nuts_g', direction: 'positive', W0: 0, T0: 50, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' },
+    { col: 'legumes_g', direction: 'positive', W0: 0, T0: 100, U0: null, energy_scaled: true, sex: 'both', max_pts: 5, unit: 'g' },
+    { col: 'added_sugar_g', direction: 'negative', W0: 25, T0: 5, U0: null, energy_scaled: true, sex: 'both', max_pts: 10, unit: 'g' }
+  ],
+  DBI: [
+    { col: 'whole_grains_g', direction: 'positive', W0: 5, T0: 225, U0: null, energy_scaled: true, sex: 'both', max_pts: 24, unit: 'g' },
+    { col: 'vegetables_g', direction: 'positive', W0: 0, T0: 450, U0: null, energy_scaled: true, sex: 'both', max_pts: 6, unit: 'g' },
+    { col: 'fruits_g', direction: 'positive', W0: 0, T0: 300, U0: null, energy_scaled: true, sex: 'both', max_pts: 6, unit: 'g' },
+    { col: 'dairy_g', direction: 'positive', W0: 0, T0: 300, U0: null, energy_scaled: true, sex: 'both', max_pts: 6, unit: 'g' },
+    { col: 'red_meat_g', direction: 'negative', W0: 150, T0: 90, U0: null, energy_scaled: true, sex: 'both', max_pts: 8, unit: 'g' },
+    { col: 'seafood_g', direction: 'positive', W0: 0, T0: 75, U0: null, energy_scaled: true, sex: 'both', max_pts: 4, unit: 'g' },
+    { col: 'eggs_g', direction: 'positive', W0: 0, T0: 46, U0: null, energy_scaled: true, sex: 'both', max_pts: 8, unit: 'g' },
+    { col: 'sodium_mg', direction: 'negative', W0: 15000, T0: 5000, U0: null, energy_scaled: false, sex: 'both', max_pts: 6, unit: 'mg' }
+  ]
+};
+
+// ---------------------------
+// 2) Raw-input conversion tables
+// ---------------------------
+const UNIT_CONVERSIONS = {
+  AHEI: {
+    whole_grains: { unit: "serving", gramsPerServing: 15 },
+    vegetables: { unit: "serving", gramsPerServing: 120 },
+    fruits: { unit: "serving", gramsPerServing: 118 },
+    ssb: { unit: "serving", gramsPerServing: 248 },
+    fruit_juice: { unit: "serving", gramsPerServing: 248 },
+    nuts: { unit: "serving", gramsPerServing: 28.35 },
+    legumes: { unit: "serving", gramsPerServing: 28.35 },
+    red_meat: { unit: "serving", gramsPerServing: 113 },
+    processed_meat: { unit: "serving", gramsPerServing: 43 },
+    seafood_omega3_mg: { unit: "mg", factor: 1 },
+    plant_omega3_mg: { unit: "mg", factor: 1 },
+    omega6_pctE: { unit: "%E", factor: 1 },
+    sodium_mg: { unit: "mg", factor: 1 }
+  },
+  MSDPS: {
+    whole_grains: { unit: "serving", gramsPerServing: 15 },
+    vegetables: { unit: "serving", gramsPerServing: 120 },
+    fruits: { unit: "serving", gramsPerServing: 118 },
+    milk: { unit: "serving", gramsPerServing: 245 },
+    yoghurt: { unit: "serving", gramsPerServing: 245 },
+    cheese: { unit: "serving", gramsPerServing: 50 },
+    seafood: { unit: "serving", gramsPerServing: 85 },
+    legumes: { unit: "serving", gramsPerServing: 28.35 },
+    nuts: { unit: "serving", gramsPerServing: 28.35 },
+    potatoes: { unit: "serving", gramsPerServing: 160 },
+    other_starchy: { unit: "serving", gramsPerServing: 160 },
+    eggs: { unit: "serving", gramsPerServing: 55 },
+    red_meat: { unit: "serving", gramsPerServing: 113 },
+    processed_meat: { unit: "serving", gramsPerServing: 43 }
+  },
+  hPDI: {
+    whole_grains: { unit: "serving", gramsPerServing: 15 },
+    vegetables: { unit: "serving", gramsPerServing: 120 },
+    fruits: { unit: "serving", gramsPerServing: 118 },
+    nuts: { unit: "serving", gramsPerServing: 28.35 },
+    legumes: { unit: "serving", gramsPerServing: 28.35 },
+    tea: { unit: "cup", gramsPerServing: 237 },
+    coffee: { unit: "cup", gramsPerServing: 248 },
+    fruit_juice: { unit: "serving", gramsPerServing: 248 },
+    refined_grains: { unit: "serving", gramsPerServing: 15 },
+    potatoes: { unit: "serving", gramsPerServing: 186 },
+    ssb: { unit: "serving", gramsPerServing: 248 },
+    milk: { unit: "serving", gramsPerServing: 245 },
+    yoghurt: { unit: "serving", gramsPerServing: 245 },
+    cheese: { unit: "serving", gramsPerServing: 50 },
+    eggs: { unit: "serving", gramsPerServing: 55 },
+    seafood: { unit: "serving", gramsPerServing: 85 },
+    red_meat: { unit: "serving", gramsPerServing: 113 },
+    processed_meat: { unit: "serving", gramsPerServing: 43 }
+  },
+  DASH: {
+    whole_grains: { unit: "serving", gramsPerServing: 15 },
+    vegetables: { unit: "serving", gramsPerServing: 120 },
+    fruits: { unit: "serving", gramsPerServing: 118 },
+    nuts: { unit: "serving", gramsPerServing: 28.35 },
+    legumes: { unit: "serving", gramsPerServing: 28.35 },
+    milk: { unit: "serving", gramsPerServing: 245 },
+    yoghurt: { unit: "serving", gramsPerServing: 245 },
+    cheese: { unit: "serving", gramsPerServing: 50 },
+    sodium_mg: { unit: "mg", factor: 1 },
+    ssb: { unit: "serving", gramsPerServing: 248 },
+    red_meat: { unit: "serving", gramsPerServing: 113 },
+    processed_meat: { unit: "serving", gramsPerServing: 43 }
+  },
+  DRRD: {
+    omega6_pctE: { unit: "%E", factor: 1 },
+    seafood_omega3_mg: { unit: "mg", factor: 1 },
+    plant_omega3_mg: { unit: "mg", factor: 1 },
+    sfa_pctE: { unit: "%E", factor: 1 },
+    coffee: { unit: "cup", gramsPerServing: 248 },
+    nuts: { unit: "serving", gramsPerServing: 28.35 },
+    fruits: { unit: "serving", gramsPerServing: 118 },
+    ssb: { unit: "serving", gramsPerServing: 248 },
+    fruit_juice: { unit: "serving", gramsPerServing: 248 },
+    red_meat: { unit: "serving", gramsPerServing: 113 },
+    processed_meat: { unit: "serving", gramsPerServing: 43 }
+  },
+  WCRF: {
+    fruits: { unit: "serving", gramsPerServing: 118 },
+    vegetables: { unit: "serving", gramsPerServing: 120 },
+    fiber: { unit: "g", factor: 1 },
+    ssb: { unit: "serving", gramsPerServing: 248 },
+    processed_meat: { unit: "serving", gramsPerServing: 43 },
+    red_meat: { unit: "serving", gramsPerServing: 113 }
+  },
+  PHDI: {
+    whole_grains: { unit: "serving", gramsPerServing: 15 },
+    potatoes: { unit: "serving", gramsPerServing: 160 },
+    other_starchy: { unit: "serving", gramsPerServing: 160 },
+    vegetables: { unit: "serving", gramsPerServing: 120 },
+    fruits: { unit: "serving", gramsPerServing: 118 },
+    milk: { unit: "serving", gramsPerServing: 245 },
+    yoghurt: { unit: "serving", gramsPerServing: 245 },
+    cheese: { unit: "serving", gramsPerServing: 50 },
+    eggs: { unit: "serving", gramsPerServing: 55 },
+    seafood: { unit: "serving", gramsPerServing: 85 },
+    nuts: { unit: "serving", gramsPerServing: 28.35 },
+    legumes: { unit: "serving", gramsPerServing: 28.35 },
+    red_meat: { unit: "serving", gramsPerServing: 113 },
+    processed_meat: { unit: "serving", gramsPerServing: 43 },
+    added_sugar: { unit: "g", factor: 1 }
+  },
+  DBI: {
+    whole_grains: { unit: "serving", gramsPerServing: 30 },
+    vegetables: { unit: "serving", gramsPerServing: 120 },
+    fruits: { unit: "serving", gramsPerServing: 118 },
+    milk: { unit: "serving", gramsPerServing: 245 },
+    yoghurt: { unit: "serving", gramsPerServing: 245 },
+    cheese: { unit: "serving", gramsPerServing: 50 },
+    red_meat: { unit: "serving", gramsPerServing: 113 },
+    seafood: { unit: "serving", gramsPerServing: 85 },
+    eggs: { unit: "serving", gramsPerServing: 55 },
+    sodium_mg: { unit: "mg", factor: 1 }
+  }
+};
+
+// ---------------------------
+// 3) Labels and descriptions
+// ---------------------------
+const RAW_INPUT_LABELS = {
+  whole_grains: "Whole grains",
+  vegetables: "Vegetables",
+  fruits: "Fruits",
+  nuts: "Nuts",
+  legumes: "Legumes",
+  red_meat: "Red meat",
+  processed_meat: "Processed meat",
+  ssb: "Sugar-sweetened beverages",
+  fruit_juice: "Fruit juice",
+  sodium_mg: "Sodium",
+  seafood_omega3_mg: "Seafood omega-3",
+  plant_omega3_mg: "Plant omega-3",
+  omega6_pctE: "Omega-6",
+  milk: "Milk",
+  yoghurt: "Yoghurt",
+  cheese: "Cheese",
+  seafood: "Seafood",
+  potatoes: "Potatoes",
+  other_starchy: "Other starchy vegetables",
+  eggs: "Eggs",
+  tea: "Tea",
+  coffee: "Coffee",
+  refined_grains: "Refined grains",
+  sfa_pctE: "Saturated fat",
+  fiber: "Fiber",
+  added_sugar: "Added sugar"
+};
+
+function prettyRawInputName(key) {
+  return RAW_INPUT_LABELS[key] || key.replaceAll("_", " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const FOOD_LABELS = {
+  whole_grains_g: "Whole grains",
+  vegetables_g: "Vegetables",
+  fruits_g: "Fruits",
+  nuts_g: "Nuts",
+  legumes_g: "Legumes",
+  red_meat_g: "Red meat",
+  processed_meat_g: "Processed meat",
+  ssb_juice_g: "Sugar-sweetened beverages + juice",
+  sodium_mg: "Sodium",
+  lc_n3_pctE: "Long-chain n-3 PUFA",
+  pufa_pctE: "Polyunsaturated fatty acids",
+  dairy_g: "Dairy",
+  seafood_g: "Seafood",
+  starchy_g: "Starchy vegetables",
+  eggs_g: "Eggs",
+  meats_g: "Meats",
+  tea_coffee_g: "Tea and coffee",
+  fruit_juice_g: "Fruit juice",
+  refined_grains_g: "Refined grains",
+  potatoes_g: "Potatoes",
+  ssb_g: "Sugar-sweetened beverages",
+  nuts_legumes_g: "Nuts and legumes",
+  ps_ratio: "PUFA/SFA ratio",
+  coffee_g: "Coffee",
+  fruits_veg_g: "Fruits and vegetables",
+  fiber_g: "Fiber",
+  added_sugar_g: "Added sugar"
+};
+
+function prettyFoodName(key) {
+  return FOOD_LABELS[key] || key.replaceAll("_", " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const FOOD_DESCRIPTIONS = {
+  whole_grains: {
+    title: "Whole grains",
+    body: `
+      <p><strong>Common foods:</strong> brown rice, oats, whole-wheat bread, whole-grain noodles, barley, quinoa.</p>
+      <p><strong>Approximate serving:</strong> about 15 g whole grains per serving in the current conversion table.</p>
+    `
+  },
+  vegetables: {
+    title: "Vegetables",
+    body: `
+      <p><strong>Common foods:</strong> leafy greens, broccoli, cabbage, carrots, tomato, cucumber, peppers.</p>
+      <p><strong>Approximate serving:</strong> about 120 g per serving.</p>
+    `
+  },
+  fruits: {
+    title: "Fruits",
+    body: `
+      <p><strong>Common foods:</strong> apples, oranges, bananas, berries, pears, peaches.</p>
+      <p><strong>Approximate serving:</strong> about 118 g per serving.</p>
+    `
+  },
+  nuts: {
+    title: "Nuts",
+    body: `
+      <p><strong>Common foods:</strong> almonds, walnuts, cashews, pistachios, peanuts.</p>
+      <p><strong>Approximate serving:</strong> about 28.35 g per serving.</p>
+    `
+  },
+  legumes: {
+    title: "Legumes",
+    body: `
+      <p><strong>Common foods:</strong> beans, lentils, chickpeas, peas, soybeans.</p>
+      <p><strong>Approximate serving:</strong> about 28.35 g per serving.</p>
+    `
+  },
+  red_meat: {
+    title: "Red meat",
+    body: `
+      <p><strong>Common foods:</strong> beef, pork, lamb.</p>
+      <p><strong>Approximate serving:</strong> about 113 g per serving.</p>
+    `
+  },
+  processed_meat: {
+    title: "Processed meat",
+    body: `
+      <p><strong>Common foods:</strong> bacon, sausage, ham, hot dogs, luncheon meat.</p>
+      <p><strong>Approximate serving:</strong> about 43 g per serving.</p>
+    `
+  },
+  sodium_mg: {
+    title: "Sodium",
+    body: `
+      <p><strong>Common sources:</strong> table salt, soy sauce, sauces, processed foods, instant noodles, packaged snacks.</p>
+      <p><strong>Input unit:</strong> mg/day.</p>
+    `
+  }
+};
+
+// ---------------------------
+// 4) Utilities
+// ---------------------------
+function clip(x, lo, hi) {
+  return Math.min(Math.max(x, lo), hi);
+}
+
+function sampleNormal(mean, sd) {
+  if (!(sd > 0)) return mean;
+  const u1 = Math.random();
+  const u2 = Math.random();
+  const z = Math.sqrt(-2 * Math.log(Math.max(u1, 1e-12))) * Math.cos(2 * Math.PI * u2);
+  return mean + sd * z;
+}
+
+function convertToValue(x, spec, perturb = false) {
+  if (!Number.isFinite(x)) return 0;
+  if (!spec) return x;
+
+  if (Number.isFinite(spec.gramsPerServing)) {
+    let gps = spec.gramsPerServing;
+    if (perturb) gps = Math.max(1e-6, sampleNormal(gps, gps * 0.10));
+    return x * gps;
+  }
+
+  if (Number.isFinite(spec.factor)) {
+    return x * spec.factor;
+  }
+
+  return x;
+}
+
+function mgToPctE(mg, kcalTotal) {
+  const g = mg / 1000;
+  const kcal = g * 9;
+  return 100 * kcal / kcalTotal;
+}
+
+function erf(x) {
+  const sign = x >= 0 ? 1 : -1;
+  x = Math.abs(x);
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+  const t = 1 / (1 + p * x);
+  const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+  return sign * y;
+}
+
+function stdNormPdf(x) {
+  return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+}
+
+function stdNormCdf(x) {
+  return 0.5 * (1 + erf(x / Math.SQRT2));
+}
+
+function adaptiveSimpson(f, a, b, eps = 1e-9, maxDepth = 18) {
+  function simpson(f, a, b) {
+    const c = (a + b) / 2;
+    return (b - a) / 6 * (f(a) + 4 * f(c) + f(b));
+  }
+  function recurse(f, a, b, eps, whole, depth) {
+    const c = (a + b) / 2;
+    const left = simpson(f, a, c);
+    const right = simpson(f, c, b);
+    const delta = left + right - whole;
+    if (depth <= 0 || Math.abs(delta) <= 15 * eps) return left + right + delta / 15;
+    return recurse(f, a, c, eps / 2, left, depth - 1) + recurse(f, c, b, eps / 2, right, depth - 1);
+  }
+  const whole = simpson(f, a, b);
+  return recurse(f, a, b, eps, whole, maxDepth);
+}
+
+function skewNormPdf(x, xi, omega, alpha) {
+  const z = (x - xi) / omega;
+  return (2 / omega) * stdNormPdf(z) * stdNormCdf(alpha * z);
+}
+
+function skewNormCdf(x, xi, omega, alpha) {
+  if (!Number.isFinite(x) || !Number.isFinite(xi) || !Number.isFinite(omega) || !Number.isFinite(alpha)) return NaN;
+  if (!(omega > 0)) return NaN;
+  const lower = xi - 12 * omega;
+  if (x <= lower) return 0;
+  if (x >= xi + 12 * omega) return 1;
+  const f = (t) => skewNormPdf(t, xi, omega, alpha);
+  return clip(adaptiveSimpson(f, lower, x, 1e-8, 20), 1e-12, 1 - 1e-12);
+}
+
+function imputeU(W0, T0, direction, kappa = 0.2) {
+  if (!Number.isFinite(W0) || !Number.isFinite(T0)) return NaN;
+  const d = String(direction).toLowerCase();
+  if (d === "positive") return T0 * (1 + kappa);
+  if (d === "negative") return Math.max(T0 * (1 - kappa), 0);
+  return NaN;
+}
+
+function validateWTU(W, T, U) {
+  const low = Math.min(W, U);
+  const high = Math.max(W, U);
+  return Number.isFinite(W) && Number.isFinite(T) && Number.isFinite(U) && T >= low && T <= high;
+}
+
+function calcProb(x, W, T, U, direction = "positive", alpha0 = 3, scaleDiv = 4) {
+  if (![x, W, T, U].every(Number.isFinite)) return NaN;
+  if (!validateWTU(W, T, U)) return NaN;
+  const xi = T;
+  const omega = Math.max(Math.abs(U - W) / scaleDiv, 1e-6);
+  const alpha = String(direction).toLowerCase() === "positive" ? -Math.abs(alpha0) : Math.abs(alpha0);
+  const cdf = skewNormCdf(x, xi, omega, alpha);
+  const p = String(direction).toLowerCase() === "positive" ? cdf : (1 - cdf);
+  return clip(p, 1e-6, 1 - 1e-6);
+}
+
+function powerMeanWeighted(vals, w = null, rho = 0.3, eps = 1e-12) {
+  const keep = vals.map((v, i) => Number.isFinite(v) ? i : -1).filter(i => i >= 0);
+  if (keep.length === 0) return NaN;
+
+  const vv = keep.map(i => clip(vals[i], eps, 1 - eps));
+  let ww = w ? keep.map(i => w[i]) : Array(keep.length).fill(1 / keep.length);
+
+  const sw = ww.reduce((a, b) => a + b, 0);
+  if (!(sw > 0)) return NaN;
+  ww = ww.map(x => x / sw);
+
+  if (Math.abs(rho) < 1e-6) {
+    return Math.exp(vv.reduce((acc, v, i) => acc + ww[i] * Math.log(v), 0));
+  } else {
+    const z = vv.map(v => rho * Math.log(v));
+    const m = Math.max(...z);
+    const s = z.reduce((acc, zz, i) => acc + ww[i] * Math.exp(zz - m), 0);
+    return Math.exp((Math.log(s) + m) / rho);
+  }
+}
+
+function uniqueFoodCols(refUse) {
+  return [...new Set(refUse.map(r => r.col))];
+}
+
+function quantile(arr, q) {
+  if (arr.length === 0) return NaN;
+  const a = [...arr].sort((x, y) => x - y);
+  const pos = (a.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  return a[base + 1] !== undefined ? a[base] + rest * (a[base + 1] - a[base]) : a[base];
+}
+
+function getRecommendedEnergy(age, female) {
+  if (age <= 3) return 1000;
+  if (age <= 8) return female === 1 ? 1400 : 1600;
+  if (age <= 13) return female === 1 ? 1800 : 2000;
+  if (age <= 18) return female === 1 ? 2000 : 2400;
+  if (age <= 30) return female === 1 ? 2000 : 2600;
+  if (age <= 50) return female === 1 ? 1900 : 2500;
+  return female === 1 ? 1800 : 2300;
+}
+
+// ---------------------------
+// 5) Raw-input preprocessing
+// ---------------------------
+function preprocessInputForPattern(patternName, rawInput, perturb = false) {
+  const conv = UNIT_CONVERSIONS[patternName] || {};
+  const kcal = Number(rawInput.energy_kcal);
+  const x = { ...rawInput };
+  const v = (name) => convertToValue(Number(rawInput[name] || 0), conv[name], perturb);
+
+  if (patternName === "AHEI") {
+    x.whole_grains_g = v("whole_grains");
+    x.vegetables_g = v("vegetables");
+    x.fruits_g = v("fruits");
+    x.nuts_g = v("nuts");
+    x.legumes_g = v("legumes");
+    x.red_meat_g = v("red_meat");
+    x.processed_meat_g = v("processed_meat");
+    x.sodium_mg = v("sodium_mg");
+    x.ssb_juice_g = v("ssb") + v("fruit_juice");
+    const lc_n3_pctE = mgToPctE(v("seafood_omega3_mg"), kcal);
+    const plant_n3_pctE = mgToPctE(v("plant_omega3_mg"), kcal);
+    x.lc_n3_pctE = lc_n3_pctE;
+    x.plant_n3_pctE = plant_n3_pctE;
+    x.pufa_pctE = Number(rawInput.omega6_pctE || 0) + lc_n3_pctE + plant_n3_pctE;
+  } else if (patternName === "MSDPS") {
+    x.whole_grains_g = v("whole_grains");
+    x.vegetables_g = v("vegetables");
+    x.fruits_g = v("fruits");
+    x.legumes_g = v("legumes");
+    x.nuts_g = v("nuts");
+    x.seafood_g = v("seafood");
+    x.eggs_g = v("eggs");
+    x.dairy_g = v("milk") + v("yoghurt") + v("cheese");
+    x.starchy_g = v("potatoes") + v("other_starchy");
+    x.meats_g = v("red_meat") + v("processed_meat");
+  } else if (patternName === "hPDI") {
+    x.whole_grains_g = v("whole_grains");
+    x.vegetables_g = v("vegetables");
+    x.fruits_g = v("fruits");
+    x.nuts_g = v("nuts");
+    x.legumes_g = v("legumes");
+    x.fruit_juice_g = v("fruit_juice");
+    x.refined_grains_g = v("refined_grains");
+    x.potatoes_g = v("potatoes");
+    x.ssb_g = v("ssb");
+    x.seafood_g = v("seafood");
+    x.red_meat_g = v("red_meat");
+    x.processed_meat_g = v("processed_meat");
+    x.eggs_g = v("eggs");
+    x.tea_coffee_g = v("tea") + v("coffee");
+    x.dairy_g = v("milk") + v("yoghurt") + v("cheese");
+  } else if (patternName === "DASH") {
+    x.whole_grains_g = v("whole_grains");
+    x.vegetables_g = v("vegetables");
+    x.fruits_g = v("fruits");
+    x.sodium_mg = v("sodium_mg");
+    x.ssb_g = v("ssb");
+    x.nuts_legumes_g = v("nuts") + v("legumes");
+    x.dairy_g = v("milk") + v("yoghurt") + v("cheese");
+    x.meats_g = v("red_meat") + v("processed_meat");
+  } else if (patternName === "DRRD") {
+    const lc_n3_pctE = mgToPctE(v("seafood_omega3_mg"), kcal);
+    const plant_n3_pctE = mgToPctE(v("plant_omega3_mg"), kcal);
+    const pufa_pctE = Number(rawInput.omega6_pctE || 0) + lc_n3_pctE + plant_n3_pctE;
+    const sfa_pctE = Number(rawInput.sfa_pctE || 0);
+    x.ps_ratio = sfa_pctE > 0 ? pufa_pctE / sfa_pctE : 0;
+    x.coffee_g = v("coffee");
+    x.nuts_g = v("nuts");
+    x.fruits_g = v("fruits");
+    x.ssb_juice_g = v("ssb") + v("fruit_juice");
+    x.meats_g = v("red_meat") + v("processed_meat");
+  } else if (patternName === "WCRF") {
+    x.fruits_veg_g = v("fruits") + v("vegetables");
+    x.fiber_g = Number(rawInput.fiber || 0);
+    x.ssb_g = v("ssb");
+    x.processed_meat_g = v("processed_meat");
+    x.red_meat_g = v("red_meat");
+  } else if (patternName === "PHDI") {
+    x.whole_grains_g = v("whole_grains");
+    x.starchy_g = v("potatoes") + v("other_starchy");
+    x.vegetables_g = v("vegetables");
+    x.fruits_g = v("fruits");
+    x.eggs_g = v("eggs");
+    x.red_meat_g = v("red_meat");
+    x.processed_meat_g = v("processed_meat");
+    x.seafood_g = v("seafood");
+    x.nuts_g = v("nuts");
+    x.legumes_g = v("legumes");
+    x.added_sugar_g = Number(rawInput.added_sugar || 0);
+    x.dairy_g = v("milk") + v("yoghurt") + v("cheese");
+  } else if (patternName === "DBI") {
+    x.whole_grains_g = v("whole_grains");
+    x.vegetables_g = v("vegetables");
+    x.fruits_g = v("fruits");
+    x.red_meat_g = v("red_meat");
+    x.seafood_g = v("seafood");
+    x.eggs_g = v("eggs");
+    x.sodium_mg = v("sodium_mg");
+    x.dairy_g = v("milk") + v("yoghurt") + v("cheese");
+  }
+
+  return x;
+}
+
+// ---------------------------
+// 6) Core DMI calculations
+// ---------------------------
+function buildDMIForPerson(inputData, refTable, options = {}) {
+  const { rho = 0.3, kappa = 0.2, alpha0 = 3, scaleDiv = 4, baseKcal = 2000, useMaxPts = true, rescaleMode = "none" } = options;
+  const refUse = refTable.filter(r => Object.prototype.hasOwnProperty.call(inputData, r.col));
+  const foodCols = uniqueFoodCols(refUse);
+  const probsRaw = [];
+  const weightsRaw = [];
+
+  for (const r of refUse) {
+    if (!["both", "F", "M"].includes(r.sex)) continue;
+    if (r.sex === "F" && Number(inputData.female) !== 1) { probsRaw.push(NaN); weightsRaw.push(NaN); continue; }
+    if (r.sex === "M" && Number(inputData.female) !== 0) { probsRaw.push(NaN); weightsRaw.push(NaN); continue; }
+
+    const U0i = Number.isFinite(r.U0) ? r.U0 : imputeU(r.W0, r.T0, r.direction, kappa);
+    const scaleFactor = r.energy_scaled ? Number(inputData.energy_kcal) / baseKcal : 1;
+    const W = r.W0 * scaleFactor;
+    const T = r.T0 * scaleFactor;
+    const U = U0i * scaleFactor;
+    const x = Number(inputData[r.col]);
+    const p = calcProb(x, W, T, U, r.direction, alpha0, scaleDiv);
+
+    probsRaw.push(p);
+    weightsRaw.push(useMaxPts ? r.max_pts : 1);
+  }
+
+  const probByFood = {};
+  const weightsByFood = {};
+
+  for (let i = 0; i < refUse.length; i++) {
+    const fg = refUse[i].col;
+    if (!(fg in probByFood) && Number.isFinite(probsRaw[i])) probByFood[fg] = probsRaw[i];
+    if (!(fg in weightsByFood) && Number.isFinite(weightsRaw[i])) weightsByFood[fg] = weightsRaw[i];
+  }
+
+  for (const fg of foodCols) {
+    if (!(fg in probByFood)) probByFood[fg] = NaN;
+    if (!(fg in weightsByFood)) weightsByFood[fg] = NaN;
+  }
+
+  const dmiRaw = powerMeanWeighted(
+    foodCols.map(f => probByFood[f]),
+    foodCols.map(f => weightsByFood[f]),
+    rho
+  );
+
+  const DMI = rescaleMode === "none" ? dmiRaw * 100 : dmiRaw * 100;
+
+  return { DMI, DMI_raw: dmiRaw, probByFood, weightsByFood, foodCols, refUse };
+}
+
+function computeImprovementForPerson(inputData, refTable, dmiResult, options = {}) {
+  const { rho = 0.3, kappa = 0.2, alpha0 = 3, scaleDiv = 4, baseKcal = 2000, useMaxPts = true, eps = 1e-8 } = options;
+  const refUse = refTable.filter(r => Object.prototype.hasOwnProperty.call(inputData, r.col));
+  const foodCols = dmiResult.foodCols;
+  const probCapRaw = [];
+  const weightRaw = [];
+
+  for (const r of refUse) {
+    if (r.sex === "F" && Number(inputData.female) !== 1) { probCapRaw.push(NaN); weightRaw.push(NaN); continue; }
+    if (r.sex === "M" && Number(inputData.female) !== 0) { probCapRaw.push(NaN); weightRaw.push(NaN); continue; }
+
+    const U0i = Number.isFinite(r.U0) ? r.U0 : imputeU(r.W0, r.T0, r.direction, kappa);
+    const scaleFactor = r.energy_scaled ? Number(inputData.energy_kcal) / baseKcal : 1;
+    const W = r.W0 * scaleFactor;
+    const T = r.T0 * scaleFactor;
+    const U = U0i * scaleFactor;
+
+    let probCap;
+    if (String(r.direction).toLowerCase() === "positive") {
+      probCap = 1 - 1e-6;
+    } else {
+      probCap = calcProb(0, W, T, U, r.direction, alpha0, scaleDiv);
+    }
+
+    probCapRaw.push(probCap);
+    weightRaw.push(useMaxPts ? r.max_pts : 1);
+  }
+
+  const probCapByFood = {};
+  const weightByFood = {};
+
+  for (let i = 0; i < refUse.length; i++) {
+    const fg = refUse[i].col;
+    if (!(fg in probCapByFood) && Number.isFinite(probCapRaw[i])) probCapByFood[fg] = probCapRaw[i];
+    if (!(fg in weightByFood) && Number.isFinite(weightRaw[i])) weightByFood[fg] = weightRaw[i];
+  }
+
+  const p = foodCols.map(f => clip(dmiResult.probByFood[f], eps, 1 - eps));
+  const pc = foodCols.map(f => clip(probCapByFood[f], eps, 1 - eps));
+  const w = foodCols.map(f => weightByFood[f]);
+
+  const DMI_recalc = powerMeanWeighted(p, w, rho) * 100;
+  const DMI_attainable = powerMeanWeighted(pc, w, rho) * 100;
+  const DMI_total_room = Math.max(DMI_attainable - DMI_recalc, 0);
+
+  const rows = foodCols.map((fg, j) => {
+    const prob = p[j];
+    const probCap = pc[j];
+    const gapRaw = Math.max(probCap - prob, 0);
+    const gapNorm = gapRaw / Math.max(probCap, eps);
+
+    const pNew = [...p];
+    pNew[j] = probCap;
+
+    const DMI_if_fix = powerMeanWeighted(pNew, w, rho) * 100;
+    const dmiGainAbs = Math.max(DMI_if_fix - DMI_recalc, 0);
+    const dmiGainShare = DMI_total_room > eps ? dmiGainAbs / DMI_total_room : 0;
+
+    return {
+      food_group: fg,
+      input: inputData[fg],
+      prob,
+      prob_cap: probCap,
+      gap_raw: gapRaw,
+      gap_norm: gapNorm,
+      dmi_gain_abs: dmiGainAbs,
+      dmi_gain_share: dmiGainShare
+    };
+  });
+
+  return { DMI_recalc, DMI_attainable, DMI_total_room, rows };
+}
+
+function monteCarloDMI(rawInput, refTable, patternName, options = {}, nIter = 400) {
+  const draws = [];
+  for (let i = 0; i < nIter; i++) {
+    const processed = preprocessInputForPattern(patternName, rawInput, true);
+    const dmi = buildDMIForPerson(processed, refTable, options).DMI;
+    if (Number.isFinite(dmi)) draws.push(dmi);
+  }
+  return {
+    median: quantile(draws, 0.5),
+    low: quantile(draws, 0.025),
+    high: quantile(draws, 0.975),
+    sd: jStat.stdev(draws, true)
+  };
+}
+
+// ---------------------------
+// 7) Local data collection
+// ---------------------------
+function buildRecord(rawInput, processedInput, dmi, imp, ui, patternName) {
+  return {
+    timestamp: new Date().toISOString(),
+    pattern: patternName,
+    raw_input: rawInput,
+    processed_input: processedInput,
+    dmi_result: dmi,
+    improvement: imp,
+    uncertainty: ui,
+    user_agent: navigator.userAgent
+  };
+}
+
+function saveRecordToLocalStorage(record) {
+  const history = JSON.parse(localStorage.getItem("dmi_records") || "[]");
+  history.push(record);
+  localStorage.setItem("dmi_records", JSON.stringify(history));
+}
+
+function downloadRecordAsJSON(record) {
+  const blob = new Blob(
+    [JSON.stringify(record, null, 2)],
+    { type: "application/json;charset=utf-8" }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  a.href = url;
+  a.download = `dmi_record_${ts}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function escapeCSV(value) {
+  if (value === null || value === undefined) return "";
+  const str = String(value);
+  if (str.includes('"') || str.includes(",") || str.includes("\n")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function flattenRecordForCSV(record) {
+  return {
+    timestamp: record.timestamp,
+    pattern: record.pattern,
+    raw_input: JSON.stringify(record.raw_input),
+    processed_input: JSON.stringify(record.processed_input),
+    dmi_result: JSON.stringify(record.dmi_result),
+    improvement: JSON.stringify(record.improvement),
+    uncertainty: JSON.stringify(record.uncertainty),
+    user_agent: record.user_agent
+  };
+}
+
+function downloadRecordAsCSV(record) {
+  const flat = flattenRecordForCSV(record);
+  const headers = Object.keys(flat);
+  const values = headers.map(h => escapeCSV(flat[h]));
+  const csv = headers.join(",") + "\n" + values.join(",");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  a.href = url;
+  a.download = `dmi_record_${ts}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function downloadAllRecordsAsCSV() {
+  const history = JSON.parse(localStorage.getItem("dmi_records") || "[]");
+
+  if (!history.length) {
+    alert("No local records found.");
+    return;
+  }
+
+  const rows = history.map(flattenRecordForCSV);
+  const headers = Object.keys(rows[0]);
+  const csvLines = [
+    headers.join(","),
+    ...rows.map(row => headers.map(h => escapeCSV(row[h])).join(","))
+  ];
+
+  const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  a.href = url;
+  a.download = `dmi_all_records_${ts}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function clearLocalRecords() {
+  const ok = confirm("This will remove all locally saved DMI records in this browser. Continue?");
+  if (!ok) return;
+  localStorage.removeItem("dmi_records");
+  latestRecord = null;
+  alert("Local history cleared.");
+}
+
+
+// ---------------------------
+// 8) Modal
+// ---------------------------
+function openFoodModal(foodKey) {
+  const modal = document.getElementById("foodModal");
+  const title = document.getElementById("foodModalTitle");
+  const body = document.getElementById("foodModalBody");
+
+  const info = FOOD_DESCRIPTIONS[foodKey] || FOOD_DESCRIPTIONS[foodKey.replace(/_g$|_mg$|_pctE$/,'')] || {
+    title: prettyFoodName(foodKey),
+    body: "<p>No detailed description has been added yet for this food group.</p>"
+  };
+
+  title.textContent = info.title;
+  body.innerHTML = info.body;
+  modal.style.display = "flex";
+}
+
+function closeFoodModal() {
+  const modal = document.getElementById("foodModal");
+  if (modal) modal.style.display = "none";
+}
+
+// ---------------------------
+// 9) UI rendering
+// ---------------------------
+const patternSelect = document.getElementById("pattern");
+const foodInputs = document.getElementById("foodInputs");
+const scoreText = document.getElementById("scoreText");
+const scoreCI = document.getElementById("scoreCI");
+const componentTable = document.getElementById("componentTable");
+const deficitBars = document.getElementById("deficitBars");
+const limitingBars = document.getElementById("limitingBars");
+
+let latestRecord = null;
+
+Object.keys(REF_TABLES).forEach(k => {
+  const opt = document.createElement("option");
+  opt.value = k;
+  opt.textContent = k;
+  patternSelect.appendChild(opt);
+});
+
+function renderInputs(patternName) {
+  const conv = UNIT_CONVERSIONS[patternName] || {};
+  const rawFields = Object.keys(conv);
+
+  foodInputs.innerHTML = "";
+
+  rawFields.forEach(field => {
+    const spec = conv[field];
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `
+      <label for="${field}" class="food-link">
+        ${prettyRawInputName(field)}
+      </label>
+      <input id="${field}" type="number" value="0" step="any" min="0" />
+      <div class="small">${spec.unit || ""}</div>
+    `;
+    foodInputs.appendChild(row);
+
+    const label = row.querySelector("label");
+    label.addEventListener("click", () => openFoodModal(field));
+  });
+}
+
+function getInputData(patternName) {
+  const conv = UNIT_CONVERSIONS[patternName] || {};
+  const rawFields = Object.keys(conv);
+
+  const obj = {
+    female: Number(document.getElementById("female").value),
+    age: Number(document.getElementById("age").value),
+    energy_kcal: Number(document.getElementById("energy_kcal").value)
+  };
+
+  rawFields.forEach(field => {
+    obj[field] = Number(document.getElementById(field)?.value || 0);
+  });
+
+  return obj;
+}
+
+function renderTop3Cards(container, rows, metric, colors) {
+  const top = [...rows].sort((a, b) => b[metric] - a[metric]).slice(0, 3);
+  const maxv = Math.max(...top.map(r => r[metric]), 1e-9);
+  container.innerHTML = "";
+
+  top.forEach((r, idx) => {
+    const pct = 100 * r[metric] / maxv;
+    const div = document.createElement("div");
+    div.className = "bar-item";
+    div.innerHTML = `
+      <div class="bar-header">
+        <span class="bar-title">${idx + 1}. ${prettyFoodName(r.food_group)}</span>
+        <span class="mono">${r[metric].toFixed(3)}</span>
+      </div>
+      <div class="bar-bg">
+        <div class="bar-fill" style="width:${pct}%; background:${colors[idx]};"></div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function renderRadarChart(containerId, rows, metric, color) {
+  const container = document.getElementById(containerId);
+  const top = [...rows].sort((a, b) => b[metric] - a[metric]).slice(0, 3);
+  const labels = top.map(r => prettyFoodName(r.food_group));
+  const values = top.map(r => r[metric]);
+  const maxVal = Math.max(...values, 1e-9);
+
+  container.innerHTML = "";
+  const size = 320, cx = size / 2, cy = size / 2, radius = 100, levels = 4;
+
+  const svg = d3.select(container).append("svg").attr("viewBox", `0 0 ${size} ${size}`);
+
+  for (let lvl = 1; lvl <= levels; lvl++) {
+    const r = radius * lvl / levels;
+    const points = labels.map((_, i) => {
+      const angle = -Math.PI / 2 + i * 2 * Math.PI / labels.length;
+      return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
+    });
+    svg.append("polygon")
+      .attr("points", points.map(p => p.join(",")).join(" "))
+      .attr("fill", "none")
+      .attr("stroke", "#e2e8f0");
+  }
+
+  labels.forEach((lab, i) => {
+    const angle = -Math.PI / 2 + i * 2 * Math.PI / labels.length;
+    const x = cx + radius * Math.cos(angle);
+    const y = cy + radius * Math.sin(angle);
+
+    svg.append("line")
+      .attr("x1", cx).attr("y1", cy)
+      .attr("x2", x).attr("y2", y)
+      .attr("stroke", "#e2e8f0");
+
+    svg.append("text")
+      .attr("x", cx + (radius + 18) * Math.cos(angle))
+      .attr("y", cy + (radius + 18) * Math.sin(angle))
+      .attr("text-anchor", "middle")
+      .attr("font-size", 12)
+      .attr("font-weight", "500")
+      .attr("fill", "#64748b")
+      .text(lab);
+  });
+
+  const poly = values.map((v, i) => {
+    const rr = radius * (v / maxVal);
+    const angle = -Math.PI / 2 + i * 2 * Math.PI / labels.length;
+    return [cx + rr * Math.cos(angle), cy + rr * Math.sin(angle)];
+  });
+
+  svg.append("polygon")
+    .attr("points", poly.map(p => p.join(",")).join(" "))
+    .attr("fill", color)
+    .attr("fill-opacity", 0.25)
+    .attr("stroke", color)
+    .attr("stroke-width", 2);
+}
+
+function renderTable(rows) {
+  componentTable.innerHTML = "";
+  const sorted = [...rows].sort((a, b) => b.dmi_gain_share - a.dmi_gain_share);
+
+  sorted.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><span class="food-link">${prettyFoodName(r.food_group)}</span></td>
+      <td>${Number(r.input).toFixed(2)}</td>
+      <td>${r.prob.toFixed(3)}</td>
+      <td>${r.prob_cap.toFixed(3)}</td>
+      <td>${r.gap_norm.toFixed(3)}</td>
+      <td>${r.dmi_gain_share.toFixed(3)}</td>
+    `;
+    const clickable = tr.querySelector("span");
+    clickable.addEventListener("click", () => openFoodModal(r.food_group));
+    componentTable.appendChild(tr);
+  });
+}
+
+// ---------------------------
+// 10) Main actions
+// ---------------------------
+async function calculateAndRender() {
+  const patternName = patternSelect.value;
+  const ref = REF_TABLES[patternName];
+  const rawInput = getInputData(patternName);
+
+  const options = {
+    rho: 0.3,
+    kappa: 0.2,
+    alpha0: 3,
+    scaleDiv: 4,
+    baseKcal: 2000,
+    useMaxPts: true,
+    rescaleMode: "none"
+  };
+
+  const inputData = preprocessInputForPattern(patternName, rawInput, false);
+  const dmi = buildDMIForPerson(inputData, ref, options);
+  const imp = computeImprovementForPerson(inputData, ref, dmi, options);
+  const ui = monteCarloDMI(rawInput, ref, patternName, options, 300);
+
+  scoreText.textContent = Number.isFinite(dmi.DMI) ? dmi.DMI.toFixed(2) : "NA";
+  scoreCI.textContent = Number.isFinite(ui.low)
+    ? `95% UI: ${ui.low.toFixed(2)} – ${ui.high.toFixed(2)} | median ${ui.median.toFixed(2)} | SD ${ui.sd.toFixed(2)}`
+    : "UI not computed";
+
+  renderTable(imp.rows);
+  renderTop3Cards(deficitBars, imp.rows, "gap_norm", ["#ef4444", "#f59e0b", "#fcd34d"]);
+  renderTop3Cards(limitingBars, imp.rows, "dmi_gain_share", ["#3b82f6", "#06b6d4", "#34d399"]);
+  renderRadarChart("deficitRadar", imp.rows, "gap_norm", "#ef4444");
+  renderRadarChart("limitingRadar", imp.rows, "dmi_gain_share", "#3b82f6");
+
+  latestRecord = buildRecord(rawInput, inputData, dmi, imp, ui, patternName);
+  saveRecordToLocalStorage(latestRecord);
+}
+
+function loadDemoValues() {
+  const patternName = patternSelect.value;
+  const demo = {
+    AHEI: {
+      whole_grains: 6, vegetables: 5.4, fruits: 4.2, nuts: 1.1, legumes: 1.1,
+      red_meat: 0.1, processed_meat: 0, ssb: 0, fruit_juice: 0, sodium_mg: 1400,
+      seafood_omega3_mg: 300, plant_omega3_mg: 400, omega6_pctE: 8.5
+    },
+    MSDPS: {
+      whole_grains: 8.5, vegetables: 6.2, fruits: 3.2, milk: 1.0, yoghurt: 0.8, cheese: 0.2,
+      seafood: 1.0, legumes: 0.7, nuts: 0.7, potatoes: 0.3, other_starchy: 0.2, eggs: 0.4,
+      red_meat: 0, processed_meat: 0
+    },
+    hPDI: {
+      whole_grains: 3.0, vegetables: 5.0, fruits: 3.0, nuts: 0.8, legumes: 0.8,
+      tea: 2.0, coffee: 1.7, fruit_juice: 0, refined_grains: 0.5, potatoes: 0.1,
+      ssb: 0, milk: 0.2, yoghurt: 0.1, cheese: 0.1, eggs: 0.05, seafood: 0.05, red_meat: 0.05, processed_meat: 0
+    },
+    DASH: {
+      whole_grains: 2.7, vegetables: 4.8, fruits: 4.0, nuts: 0.7, legumes: 0.7,
+      milk: 1.0, yoghurt: 0.4, cheese: 0.2, sodium_mg: 2200, ssb: 0, red_meat: 0.1, processed_meat: 0
+    },
+    DRRD: {
+      omega6_pctE: 7.0, seafood_omega3_mg: 250, plant_omega3_mg: 300, sfa_pctE: 8.5,
+      coffee: 2.2, nuts: 0.9, fruits: 2.5, ssb: 0, fruit_juice: 0, red_meat: 0.1, processed_meat: 0
+    },
+    WCRF: {
+      fruits: 2.0, vegetables: 2.5, fiber: 32, ssb: 0, processed_meat: 0, red_meat: 0.1
+    },
+    PHDI: {
+      whole_grains: 6, potatoes: 0.1, other_starchy: 0.1, vegetables: 2.9, fruits: 2.1,
+      milk: 0.2, yoghurt: 0.1, cheese: 0.1, eggs: 0.1, seafood: 0.4, nuts: 1.9, legumes: 3.9,
+      red_meat: 0.05, processed_meat: 0, added_sugar: 3
+    },
+    DBI: {
+      whole_grains: 7.7, vegetables: 4.2, fruits: 2.7, milk: 0.8, yoghurt: 0.3, cheese: 0.1,
+      red_meat: 0.4, seafood: 1.1, eggs: 0.9, sodium_mg: 3500
+    }
+  }[patternName] || {};
+
+  Object.entries(demo).forEach(([k, v]) => {
+    const el = document.getElementById(k);
+    if (el) el.value = v;
+  });
+}
+
+// ---------------------------
+// 11) Event binding
+// ---------------------------
+document.getElementById("loadPatternBtn").addEventListener("click", () => {
+  renderInputs(patternSelect.value);
+});
+
+document.getElementById("calcBtn").addEventListener("click", calculateAndRender);
+document.getElementById("demoBtn").addEventListener("click", loadDemoValues);
+
+document.getElementById("downloadCurrentCsvBtn").addEventListener("click", () => {
+  if (!latestRecord) {
+    alert("No current record available yet. Please calculate first.");
+    return;
+  }
+  downloadRecordAsCSV(latestRecord);
+});
+
+document.getElementById("downloadCurrentJsonBtn").addEventListener("click", () => {
+  if (!latestRecord) {
+    alert("No current record available yet. Please calculate first.");
+    return;
+  }
+  downloadRecordAsJSON(latestRecord);
+});
+
+document.getElementById("downloadAllCsvBtn").addEventListener("click", () => {
+  downloadAllRecordsAsCSV();
+});
+
+document.getElementById("clearLocalHistoryBtn").addEventListener("click", () => {
+  clearLocalRecords();
+});
+
+document.getElementById("autoEnergyBtn").addEventListener("click", () => {
+  const female = Number(document.getElementById("female").value);
+  const age = Number(document.getElementById("age").value);
+  document.getElementById("energy_kcal").value = getRecommendedEnergy(age, female);
+});
+
+document.getElementById("closeFoodModal").addEventListener("click", closeFoodModal);
+document.getElementById("foodModal").addEventListener("click", (e) => {
+  if (e.target.id === "foodModal") closeFoodModal();
+});
+
+renderInputs("AHEI");
+
+</script>
+</body>
+</html>
