@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DMI Frontend Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="./vendor/jstat.min.js"></script>
+  <script src="./vendor/d3.min.js"></script>
   <style>
     /* =========================================================
        UI 美化 CSS 区域
@@ -1186,6 +1186,15 @@ function computeImprovementForPerson(inputData, refTable, dmiResult, options = {
   return { DMI_recalc, DMI_attainable, DMI_total_room, rows };
 }
 
+function safeSampleStd(arr) {
+  const x = arr.filter(v => Number.isFinite(v));
+  const n = x.length;
+  if (n <= 1) return NaN;
+  const mean = x.reduce((a, b) => a + b, 0) / n;
+  const ss = x.reduce((a, b) => a + (b - mean) ** 2, 0);
+  return Math.sqrt(ss / (n - 1));
+}
+
 function monteCarloDMI(rawInput, refTable, patternName, options = {}, nIter = 400) {
   const draws = [];
   for (let i = 0; i < nIter; i++) {
@@ -1193,11 +1202,17 @@ function monteCarloDMI(rawInput, refTable, patternName, options = {}, nIter = 40
     const dmi = buildDMIForPerson(processed, refTable, options).DMI;
     if (Number.isFinite(dmi)) draws.push(dmi);
   }
+
+  const sdValue =
+    (window.jStat && typeof window.jStat.stdev === "function")
+      ? window.jStat.stdev(draws, true)
+      : safeSampleStd(draws);
+
   return {
     median: quantile(draws, 0.5),
     low: quantile(draws, 0.025),
     high: quantile(draws, 0.975),
-    sd: jStat.stdev(draws, true)
+    sd: sdValue
   };
 }
 
@@ -1437,6 +1452,10 @@ function renderTop3Cards(container, rows, metric, colors) {
 }
 
 function renderRadarChart(containerId, rows, metric, color) {
+  if (!window.d3) {
+  console.warn("d3 is not loaded; radar chart rendering skipped.");
+  return;
+  }
   const container = document.getElementById(containerId);
   const top = [...rows].sort((a, b) => b[metric] - a[metric]).slice(0, 3);
   const labels = top.map(r => prettyFoodName(r.food_group));
@@ -1702,43 +1721,50 @@ function toggleInputMode() {
 // 10) Main actions
 // ---------------------------
 async function calculateAndRender() {
-  const patternName = patternSelect.value;
+  try {
+    const patternName = patternSelect.value;
 
-  if (inputMode.value === "ordinary") {
-  applyOrdinaryEntriesToCurrentPattern();
+    if (inputMode.value === "ordinary") {
+      applyOrdinaryEntriesToCurrentPattern();
+    }
+
+    const ref = REF_TABLES[patternName];
+    const rawInput = getInputData(patternName);
+
+    const options = {
+      rho: 0.3,
+      kappa: 0.2,
+      alpha0: 3,
+      scaleDiv: 4,
+      baseKcal: 2000,
+      useMaxPts: true,
+      rescaleMode: "none"
+    };
+
+    const inputData = preprocessInputForPattern(patternName, rawInput, false);
+    const dmi = buildDMIForPerson(inputData, ref, options);
+    const imp = computeImprovementForPerson(inputData, ref, dmi, options);
+    const ui = monteCarloDMI(rawInput, ref, patternName, options, 300);
+
+    scoreText.textContent = Number.isFinite(dmi.DMI) ? dmi.DMI.toFixed(2) : "NA";
+    scoreCI.textContent = Number.isFinite(ui.low)
+      ? `95% UI: ${ui.low.toFixed(2)} – ${ui.high.toFixed(2)} | median ${ui.median.toFixed(2)} | SD ${ui.sd.toFixed(2)}`
+      : "UI not computed";
+
+    renderTable(imp.rows);
+    renderTop3Cards(deficitBars, imp.rows, "gap_norm", ["#ef4444", "#f59e0b", "#fcd34d"]);
+    renderTop3Cards(limitingBars, imp.rows, "dmi_gain_share", ["#3b82f6", "#06b6d4", "#34d399"]);
+    renderRadarChart("deficitRadar", imp.rows, "gap_norm", "#ef4444");
+    renderRadarChart("limitingRadar", imp.rows, "dmi_gain_share", "#3b82f6");
+
+    latestRecord = buildRecord(rawInput, inputData, dmi, imp, ui, patternName);
+    saveRecordToLocalStorage(latestRecord);
+  } catch (err) {
+    console.error("Calculate DMI failed:", err);
+    scoreText.textContent = "ERR";
+    scoreCI.textContent = `Calculation failed: ${err.message}`;
+    alert(`Calculation failed: ${err.message}`);
   }
-
-  const ref = REF_TABLES[patternName];
-  const rawInput = getInputData(patternName);
-
-  const options = {
-    rho: 0.3,
-    kappa: 0.2,
-    alpha0: 3,
-    scaleDiv: 4,
-    baseKcal: 2000,
-    useMaxPts: true,
-    rescaleMode: "none"
-  };
-
-  const inputData = preprocessInputForPattern(patternName, rawInput, false);
-  const dmi = buildDMIForPerson(inputData, ref, options);
-  const imp = computeImprovementForPerson(inputData, ref, dmi, options);
-  const ui = monteCarloDMI(rawInput, ref, patternName, options, 300);
-
-  scoreText.textContent = Number.isFinite(dmi.DMI) ? dmi.DMI.toFixed(2) : "NA";
-  scoreCI.textContent = Number.isFinite(ui.low)
-    ? `95% UI: ${ui.low.toFixed(2)} – ${ui.high.toFixed(2)} | median ${ui.median.toFixed(2)} | SD ${ui.sd.toFixed(2)}`
-    : "UI not computed";
-
-  renderTable(imp.rows);
-  renderTop3Cards(deficitBars, imp.rows, "gap_norm", ["#ef4444", "#f59e0b", "#fcd34d"]);
-  renderTop3Cards(limitingBars, imp.rows, "dmi_gain_share", ["#3b82f6", "#06b6d4", "#34d399"]);
-  renderRadarChart("deficitRadar", imp.rows, "gap_norm", "#ef4444");
-  renderRadarChart("limitingRadar", imp.rows, "dmi_gain_share", "#3b82f6");
-
-  latestRecord = buildRecord(rawInput, inputData, dmi, imp, ui, patternName);
-  saveRecordToLocalStorage(latestRecord);
 }
 
 function loadDemoValues() {
