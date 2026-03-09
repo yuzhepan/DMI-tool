@@ -144,6 +144,65 @@ h2 {
     .action-buttons { display: flex; gap: 12px; margin-top: 24px; }
     .action-buttons button { padding: 12px; font-size: 15px; }
 
+    .mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.ordinary-panel {
+  margin-top: 16px;
+  border-top: 1px dashed var(--border);
+  padding-top: 16px;
+}
+
+.ordinary-list {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 12px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.ordinary-item {
+  display: grid;
+  grid-template-columns: 1fr 90px 70px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ordinary-item:last-child {
+  border-bottom: none;
+}
+
+.ordinary-summary {
+  margin-top: 14px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.note-box {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
     /* 总分展示大字 */
     .score-container { text-align: center; padding: 20px 0; }
     .score { 
@@ -214,6 +273,14 @@ h2 {
     <div class="card" style="position: sticky; top: 30px;">
       <h2>User Inputs</h2>
 
+      <div class="mode-switch">
+      <label for="inputMode"><strong>Input mode</strong></label>
+      <select id="inputMode">
+      <option value="professional">Professional</option>
+      <option value="ordinary">Standard (China food database)</option>
+      </select>
+      </div>
+
       <div class="row" style="grid-template-columns: 1fr 140px 60px;">
         <label for="pattern">Pattern</label>
         <select id="pattern"></select>
@@ -237,7 +304,46 @@ h2 {
         <button id="autoEnergyBtn" class="secondary" type="button">Auto</button>
       </div>
 
-      <div id="foodInputs" style="margin-top: 16px; border-top: 1px dashed var(--border); padding-top: 16px;"></div>
+      <div id="ordinaryModePanel" class="ordinary-panel hidden">
+  <div class="row" style="grid-template-columns: 1fr 160px 0px;">
+    <label for="ordinaryCategory">Food category</label>
+    <select id="ordinaryCategory"></select>
+    <div></div>
+  </div>
+
+  <div class="row" style="grid-template-columns: 1fr 160px 0px;">
+    <label for="ordinaryFood">Food item</label>
+    <select id="ordinaryFood"></select>
+    <div></div>
+  </div>
+
+  <div class="row" style="grid-template-columns: 1fr 100px 80px;">
+    <label for="ordinaryAmount">Consumed amount</label>
+    <input id="ordinaryAmount" type="number" min="0" step="1" value="100" />
+    <div class="small">g/day</div>
+  </div>
+
+  <div class="action-buttons" style="margin-top: 12px;">
+    <button id="ordinaryAddBtn" type="button">Add food</button>
+    <button id="ordinaryApplyBtn" class="secondary" type="button">Apply to current pattern</button>
+  </div>
+
+  <div class="ordinary-list" id="ordinaryList">
+    <div class="small">No foods added yet.</div>
+  </div>
+
+  <div class="ordinary-summary" id="ordinarySummary">
+    <div class="small">Mapped raw inputs will appear here after foods are added.</div>
+  </div>
+
+  <div class="note-box">
+    Standard mode is a China food-database-assisted input mode. It estimates current pattern inputs from selected foods and consumed grams, then reuses the same DMI engine.
+  </div>
+</div>
+
+<div id="professionalModePanel">
+  <div id="foodInputs" style="margin-top: 16px; border-top: 1px dashed var(--border); padding-top: 16px;"></div>
+</div>
 
       <div class="action-buttons">
         <button id="calcBtn" type="button">Calculate DMI</button>
@@ -474,7 +580,8 @@ const UNIT_CONVERSIONS = {
     other_starchy: { unit: "serving", gramsPerServing: 160 },
     eggs: { unit: "serving", gramsPerServing: 55 },
     red_meat: { unit: "serving", gramsPerServing: 113 },
-    processed_meat: { unit: "serving", gramsPerServing: 43 }
+    processed_meat: { unit: "serving", gramsPerServing: 43 },
+    poultry: { unit: "serving", gramsPerServing: 85 }
   },
   hPDI: {
     whole_grains: { unit: "serving", gramsPerServing: 15 },
@@ -508,6 +615,7 @@ const UNIT_CONVERSIONS = {
     sodium_mg: { unit: "mg", factor: 1 },
     ssb: { unit: "serving", gramsPerServing: 248 },
     red_meat: { unit: "serving", gramsPerServing: 113 },
+    poultry: { unit: "serving", gramsPerServing: 85 },
     processed_meat: { unit: "serving", gramsPerServing: 43 }
   },
   DRRD: {
@@ -521,6 +629,7 @@ const UNIT_CONVERSIONS = {
     ssb: { unit: "serving", gramsPerServing: 248 },
     fruit_juice: { unit: "serving", gramsPerServing: 248 },
     red_meat: { unit: "serving", gramsPerServing: 113 },
+    poultry: { unit: "serving", gramsPerServing: 85 },
     processed_meat: { unit: "serving", gramsPerServing: 43 }
   },
   WCRF: {
@@ -572,6 +681,7 @@ const RAW_INPUT_LABELS = {
   nuts: "Nuts",
   legumes: "Legumes",
   red_meat: "Red meat",
+  poultry: "Poultry",
   processed_meat: "Processed meat",
   ssb: "Sugar-sweetened beverages",
   fruit_juice: "Fruit juice",
@@ -881,7 +991,7 @@ function preprocessInputForPattern(patternName, rawInput, perturb = false) {
     x.eggs_g = v("eggs");
     x.dairy_g = v("milk") + v("yoghurt") + v("cheese");
     x.starchy_g = v("potatoes") + v("other_starchy");
-    x.meats_g = v("red_meat") + v("processed_meat");
+    x.meats_g = v("red_meat") + v("processed_meat") + v("poultry");
   } else if (patternName === "hPDI") {
     x.whole_grains_g = v("whole_grains");
     x.vegetables_g = v("vegetables");
@@ -1242,6 +1352,20 @@ const limitingBars = document.getElementById("limitingBars");
 
 let latestRecord = null;
 
+const inputMode = document.getElementById("inputMode");
+const ordinaryModePanel = document.getElementById("ordinaryModePanel");
+const professionalModePanel = document.getElementById("professionalModePanel");
+const ordinaryCategory = document.getElementById("ordinaryCategory");
+const ordinaryFood = document.getElementById("ordinaryFood");
+const ordinaryAmount = document.getElementById("ordinaryAmount");
+const ordinaryList = document.getElementById("ordinaryList");
+const ordinarySummary = document.getElementById("ordinarySummary");
+
+const CN_FOOD_BASE = "./data/cn_foods/";
+let ordinaryEntries = [];
+let cnFoodManifest = null;
+let cnFoodCache = {};
+
 Object.keys(REF_TABLES).forEach(k => {
   const opt = document.createElement("option");
   opt.value = k;
@@ -1390,11 +1514,200 @@ function renderTable(rows) {
   });
 }
 
+async function loadChineseFoodManifest() {
+  if (cnFoodManifest) return cnFoodManifest;
+  const res = await fetch(`${CN_FOOD_BASE}manifest.json`);
+  if (!res.ok) throw new Error("Failed to load manifest.json");
+  cnFoodManifest = await res.json();
+  return cnFoodManifest;
+}
+
+async function loadCategoryFoods(categoryId) {
+  const manifest = await loadChineseFoodManifest();
+  const cat = manifest.categories.find(x => x.id === categoryId);
+  if (!cat) return [];
+
+  const cacheKey = categoryId;
+  if (cnFoodCache[cacheKey]) return cnFoodCache[cacheKey];
+
+  const allFoods = [];
+  for (const file of cat.files) {
+    const res = await fetch(`${CN_FOOD_BASE}${file}`);
+    if (!res.ok) continue;
+    const arr = await res.json();
+    if (Array.isArray(arr)) {
+      arr.forEach(item => {
+        allFoods.push({
+          ...item,
+          __categoryId: cat.id,
+          __categoryLabel: cat.label,
+          __sourceFile: file
+        });
+      });
+    }
+  }
+
+  cnFoodCache[cacheKey] = allFoods;
+  return allFoods;
+}
+
+async function initOrdinaryCategories() {
+  const manifest = await loadChineseFoodManifest();
+  ordinaryCategory.innerHTML = "";
+  manifest.categories.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat.id;
+    opt.textContent = cat.label;
+    ordinaryCategory.appendChild(opt);
+  });
+
+  await refreshOrdinaryFoods();
+}
+
+async function refreshOrdinaryFoods() {
+  const categoryId = ordinaryCategory.value;
+  const foods = await loadCategoryFoods(categoryId);
+
+  ordinaryFood.innerHTML = "";
+  foods.forEach((item, idx) => {
+    const opt = document.createElement("option");
+    opt.value = idx;
+    opt.textContent = item.foodName;
+    ordinaryFood.appendChild(opt);
+  });
+}
+
+function getSelectedOrdinaryFood() {
+  const categoryId = ordinaryCategory.value;
+  const foods = cnFoodCache[categoryId] || [];
+  const idx = Number(ordinaryFood.value);
+  return foods[idx] || null;
+}
+
+function edibleAdjustedGrams(foodItem, consumedGrams) {
+  const edible = Number(foodItem?.edible);
+  const edibleRatio = Number.isFinite(edible) ? edible / 100 : 1;
+  return consumedGrams * edibleRatio;
+}
+
+function inferRawInputsFromChineseFood(foodItem, consumedGrams) {
+  const categoryLabel = foodItem.__categoryLabel;
+  const foodName = String(foodItem.foodName || "");
+  const edibleGrams = edibleAdjustedGrams(foodItem, consumedGrams);
+
+  const out = {};
+
+  if (categoryLabel === "蔬菜类及其制品") out.vegetables = edibleGrams;
+  else if (categoryLabel === "水果类及其制品") out.fruits = edibleGrams;
+  else if (categoryLabel === "干豆类及其制品") out.legumes = edibleGrams;
+  else if (categoryLabel === "坚果种子类") out.nuts = edibleGrams;
+  else if (categoryLabel === "鱼虾蟹贝类") out.seafood = edibleGrams;
+  else if (categoryLabel === "蛋类及其制品") out.eggs = edibleGrams;
+  else if (categoryLabel === "畜肉类及其制品") out.red_meat = edibleGrams;
+  else if (categoryLabel === "禽肉类及其制品") out.poultry = edibleGrams;
+  else if (categoryLabel === "薯类淀粉及其制品") out.potatoes = edibleGrams;
+  else if (categoryLabel === "菌藻类") out.vegetables = edibleGrams;
+  else if (categoryLabel === "乳类及其制品") {
+    if (/奶酪|干酪|芝士/.test(foodName)) out.cheese = edibleGrams;
+    else if (/酸奶|发酵乳/.test(foodName)) out.yoghurt = edibleGrams;
+    else out.milk = edibleGrams;
+  }
+  else if (categoryLabel === "谷类及其制品") {
+    if (/糙米|全麦|燕麦|荞麦|玉米|小米|高粱|黑米|薏米/.test(foodName)) {
+      out.whole_grains = edibleGrams;
+    } else {
+      out.refined_grains = edibleGrams;
+      out.whole_grains = edibleGrams;
+    }
+  }
+
+  return out;
+}
+
+function mergeOrdinaryEntriesToRawInputs() {
+  const merged = {};
+  ordinaryEntries.forEach(entry => {
+    Object.entries(entry.rawMap).forEach(([k, v]) => {
+      merged[k] = (merged[k] || 0) + v;
+    });
+  });
+  return merged;
+}
+
+function renderOrdinaryEntries() {
+  if (!ordinaryEntries.length) {
+    ordinaryList.innerHTML = `<div class="small">No foods added yet.</div>`;
+    ordinarySummary.innerHTML = `<div class="small">Mapped raw inputs will appear here after foods are added.</div>`;
+    return;
+  }
+
+  ordinaryList.innerHTML = ordinaryEntries.map((entry, idx) => `
+    <div class="ordinary-item">
+      <div>
+        <div><strong>${entry.foodName}</strong></div>
+        <div class="small">${entry.categoryLabel}</div>
+      </div>
+      <div class="mono">${entry.consumedGrams.toFixed(1)} g</div>
+      <button type="button" class="secondary" onclick="removeOrdinaryEntry(${idx})">Remove</button>
+    </div>
+  `).join("");
+
+  const merged = mergeOrdinaryEntriesToRawInputs();
+  const rows = Object.entries(merged)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `<div class="small"><strong>${prettyRawInputName(k)}</strong>: ${v.toFixed(1)} g</div>`)
+    .join("");
+
+  ordinarySummary.innerHTML = rows || `<div class="small">No directly mappable raw inputs yet.</div>`;
+}
+
+function removeOrdinaryEntry(idx) {
+  ordinaryEntries.splice(idx, 1);
+  renderOrdinaryEntries();
+}
+
+function applyOrdinaryEntriesToCurrentPattern() {
+  const merged = mergeOrdinaryEntriesToRawInputs();
+
+  const conv = UNIT_CONVERSIONS[patternSelect.value] || {};
+  Object.keys(conv).forEach(field => {
+    const el = document.getElementById(field);
+    if (el) el.value = 0;
+  });
+
+  Object.entries(merged).forEach(([k, grams]) => {
+    const el = document.getElementById(k);
+    if (!el) return;
+
+    const spec = conv[k];
+    if (!spec) return;
+
+    if (Number.isFinite(spec.gramsPerServing)) {
+      el.value = (grams / spec.gramsPerServing).toFixed(2);
+    } else if (Number.isFinite(spec.factor)) {
+      el.value = (grams / spec.factor).toFixed(2);
+    } else {
+      el.value = grams.toFixed(2);
+    }
+  });
+}
+
+function toggleInputMode() {
+  const ordinary = inputMode.value === "ordinary";
+  ordinaryModePanel.classList.toggle("hidden", !ordinary);
+  professionalModePanel.classList.toggle("hidden", ordinary);
+}
+
 // ---------------------------
 // 10) Main actions
 // ---------------------------
 async function calculateAndRender() {
   const patternName = patternSelect.value;
+
+  if (inputMode.value === "ordinary") {
+  applyOrdinaryEntriesToCurrentPattern();
+  }
+
   const ref = REF_TABLES[patternName];
   const rawInput = getInputData(patternName);
 
@@ -1519,7 +1832,43 @@ document.getElementById("foodModal").addEventListener("click", (e) => {
   if (e.target.id === "foodModal") closeFoodModal();
 });
 
+inputMode.addEventListener("change", toggleInputMode);
+
+ordinaryCategory.addEventListener("change", async () => {
+  await refreshOrdinaryFoods();
+});
+
+document.getElementById("ordinaryAddBtn").addEventListener("click", () => {
+  const foodItem = getSelectedOrdinaryFood();
+  const grams = Number(ordinaryAmount.value);
+
+  if (!foodItem || !Number.isFinite(grams) || grams <= 0) {
+    alert("Please select a food item and enter a valid amount.");
+    return;
+  }
+
+  ordinaryEntries.push({
+    foodCode: foodItem.foodCode,
+    foodName: foodItem.foodName,
+    categoryLabel: foodItem.__categoryLabel,
+    consumedGrams: grams,
+    rawMap: inferRawInputsFromChineseFood(foodItem, grams)
+  });
+
+  renderOrdinaryEntries();
+});
+
+document.getElementById("ordinaryApplyBtn").addEventListener("click", () => {
+  applyOrdinaryEntriesToCurrentPattern();
+  alert("Mapped values have been written into the current pattern inputs.");
+});
+
 renderInputs("AHEI");
+toggleInputMode();
+initOrdinaryCategories().catch(err => {
+  console.error(err);
+  ordinarySummary.innerHTML = `<div class="small">Failed to load China food database manifest.</div>`;
+});
 
 </script>
 </body>
