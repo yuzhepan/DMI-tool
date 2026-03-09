@@ -1,0 +1,155 @@
+{
+  "categories":[
+    {
+      "id": "livestock",
+      "label": "畜肉类及其制品",
+      "files":[
+        "merged_畜肉类及其制品-驴.json",
+        "merged_畜肉类及其制品-马.json",
+        "merged_畜肉类及其制品-牛.json",
+        "merged_畜肉类及其制品-羊.json",
+        "merged_畜肉类及其制品-猪.json",
+        "merged_畜肉类及其制品-其他.json"
+      ]
+    },
+    {
+      "id": "eggs",
+      "label": "蛋类及其制品",
+      "files":[
+        "merged_蛋类及其制品-鹌鹑蛋.json",
+        "merged_蛋类及其制品-鹅蛋.json",
+        "merged_蛋类及其制品-鸡蛋.json",
+        "merged_蛋类及其制品-鸭蛋.json"
+      ]
+    },
+    {
+      "id": "animal_oil",
+      "label": "动物油脂",
+      "files":[
+        "merged_动物油脂类-动物油脂.json"
+      ]
+    },
+    {
+      "id": "legumes",
+      "label": "干豆类及其制品",
+      "files":[
+        "merged_干豆类及其制品-蚕豆.json",
+        "merged_干豆类及其制品-赤豆.json",
+        "merged_干豆类及其制品-大豆.json",
+        "merged_干豆类及其制品-绿豆.json",
+        "merged_干豆类及其制品-芸豆.json",
+        "merged_干豆类及其制品-其他.json"
+      ]
+    },
+    {
+      "id": "grains",
+      "label": "谷类及其制品",
+      "files":[
+        "merged_谷类及其制品-大麦.json",
+        "merged_谷类及其制品-稻米.json",
+        "merged_谷类及其制品-小麦.json",
+        "merged_谷类及其制品-小米黄米.json",
+        "merged_谷类及其制品-玉米.json",
+        "merged_谷类及其制品-其他.json"
+      ]
+    },
+    {
+      "id": "nuts_seeds",
+      "label": "坚果种子类",
+      "files":[
+        "merged_坚果种子类-树坚果.json",
+        "merged_坚果种子类-种子.json"
+      ]
+    },
+    {
+      "id": "fungi_algae",
+      "label": "菌藻类",
+      "files":[
+        "merged_菌藻类-菌类.json",
+        "merged_菌藻类-藻类.json"
+      ]
+    },
+    {
+      "id": "other",
+      "label": "其他类",
+      "files":[
+        "merged_其他类-其他.json"
+      ]
+    },
+    {
+      "id": "poultry",
+      "label": "禽肉类及其制品",
+      "files":[
+        "merged_禽肉类及其制品-鹅.json",
+        "merged_禽肉类及其制品-火鸡.json",
+        "merged_禽肉类及其制品-鸡.json",
+        "merged_禽肉类及其制品-鸭.json",
+        "merged_禽肉类及其制品-其他.json"
+      ]
+    },
+    {
+      "id": "dairy",
+      "label": "乳类及其制品",
+      "files":[
+        "merged_乳类及其制品-奶粉.json",
+        "merged_乳类及其制品-奶酪.json",
+        "merged_乳类及其制品-奶油.json",
+        "merged_乳类及其制品-酸奶.json",
+        "merged_乳类及其制品-液态乳.json",
+        "merged_乳类及其制品-其他.json"
+      ]
+    },
+    {
+      "id": "vegetables",
+      "label": "蔬菜类及其制品",
+      "files":[
+        "merged_蔬菜类及其制品-葱蒜类.json",
+        "merged_蔬菜类及其制品-根菜类.json",
+        "merged_蔬菜类及其制品-嫩茎叶花菜类.json",
+        "merged_蔬菜类及其制品-茄果瓜菜类.json",
+        "merged_蔬菜类及其制品-薯芋类.json",
+        "merged_蔬菜类及其制品-水生蔬菜类.json",
+        "merged_蔬菜类及其制品-鲜豆类.json",
+        "merged_蔬菜类及其制品-野生蔬菜类.json"
+      ]
+    },
+    {
+      "id": "tubers_starch",
+      "label": "薯类淀粉及其制品",
+      "files":[
+        "merged_薯类淀粉及其制品-淀粉类.json",
+        "merged_薯类淀粉及其制品-薯类.json"
+      ]
+    },
+    {
+      "id": "fruits",
+      "label": "水果类及其制品",
+      "files":[
+        "merged_水果类及其制品-柑橘类.json",
+        "merged_水果类及其制品-瓜果类.json",
+        "merged_水果类及其制品-核果类.json",
+        "merged_水果类及其制品-浆果类.json",
+        "merged_水果类及其制品-热带亚热带水果.json",
+        "merged_水果类及其制品-仁果类.json"
+      ]
+    },
+    {
+      "id": "seafood",
+      "label": "鱼虾蟹贝类",
+      "files":[
+        "merged_鱼虾蟹贝类-贝.json",
+        "merged_鱼虾蟹贝类-虾.json",
+        "merged_鱼虾蟹贝类-蟹.json",
+        "merged_鱼虾蟹贝类-鱼.json",
+        "merged_鱼虾蟹贝类-其他.json"
+      ]
+    },
+    {
+      "id": "plant_oil",
+      "label": "植物油",
+      "files":[
+        "merged_植物油-植物油.json"
+      ]
+    }
+  ]
+}
