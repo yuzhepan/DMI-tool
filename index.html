@@ -332,14 +332,22 @@ h2 {
     <div class="small">No foods added yet.</div>
   </div>
 
-  <div class="ordinary-summary" id="ordinarySummary">
-    <div class="small">Mapped raw inputs will appear here after foods are added.</div>
-  </div>
+   <div class="ordinary-summary" id="ordinarySummary">
+   <div class="small">Mapped raw inputs will appear here after foods are added.</div>
+   </div>
 
-  <div class="note-box">
-    Standard mode is a China food-database-assisted input mode. It estimates current pattern inputs from selected foods and consumed grams, then reuses the same DMI engine.
+   <div class="ordinary-summary" id="ordinaryNutrientSummary">
+   <div class="small">Estimated macro- and micronutrient totals will appear here after foods are added.</div>
+   </div>
+
+   <div class="ordinary-summary" id="ordinaryDerivedSummary">
+   <div class="small">Pattern-related derived metrics (e.g., sodium, fiber, fatty-acid-related metrics when available) will appear here after foods are added.</div>
+   </div>
+
+   <div class="note-box">
+  Standard mode is a China food-database-assisted input mode. It estimates current pattern inputs from selected foods and consumed grams, then reuses the same DMI engine.
   </div>
-</div>
+  </div>
 
 <div id="professionalModePanel">
   <div id="foodInputs" style="margin-top: 16px; border-top: 1px dashed var(--border); padding-top: 16px;"></div>
@@ -1375,6 +1383,8 @@ const ordinaryFood = document.getElementById("ordinaryFood");
 const ordinaryAmount = document.getElementById("ordinaryAmount");
 const ordinaryList = document.getElementById("ordinaryList");
 const ordinarySummary = document.getElementById("ordinarySummary");
+const ordinaryNutrientSummary = document.getElementById("ordinaryNutrientSummary");
+const ordinaryDerivedSummary = document.getElementById("ordinaryDerivedSummary");
 
 const CN_FOOD_BASE = "./data/cn_foods/";
 let ordinaryEntries = [];
@@ -1603,6 +1613,17 @@ function getSelectedOrdinaryFood() {
   return foods[idx] || null;
 }
 
+function parseFoodNumber(x) {
+  if (x === null || x === undefined) return 0;
+  const s = String(x).trim();
+
+  if (s === "" || s === "—" || s === "-" || s === "NA" || s === "N/A") return 0;
+  if (/^Tr$/i.test(s)) return 0;   // 先按 0 处理；以后也可以改成极小值策略
+
+  const v = Number(s);
+  return Number.isFinite(v) ? v : 0;
+}
+
 function edibleAdjustedGrams(foodItem, consumedGrams) {
   const edible = Number(foodItem?.edible);
   const edibleRatio = Number.isFinite(edible) ? edible / 100 : 1;
@@ -1643,6 +1664,39 @@ function inferRawInputsFromChineseFood(foodItem, consumedGrams) {
   return out;
 }
 
+function calcFoodNutrientContribution(foodItem, consumedGrams) {
+  const edibleGrams = edibleAdjustedGrams(foodItem, consumedGrams);
+  const factor = edibleGrams / 100;
+
+  return {
+    edible_g: edibleGrams,
+    energy_kcal: parseFoodNumber(foodItem.energyKCal) * factor,
+    protein_g: parseFoodNumber(foodItem.protein) * factor,
+    fat_g: parseFoodNumber(foodItem.fat) * factor,
+    cho_g: parseFoodNumber(foodItem.CHO) * factor,
+    fiber_g: parseFoodNumber(foodItem.dietaryFiber) * factor,
+    cholesterol_mg: parseFoodNumber(foodItem.cholesterol) * factor,
+
+    sodium_mg: parseFoodNumber(foodItem.Na) * factor,
+    potassium_mg: parseFoodNumber(foodItem.K) * factor,
+    calcium_mg: parseFoodNumber(foodItem.Ca) * factor,
+    phosphorus_mg: parseFoodNumber(foodItem.P) * factor,
+    magnesium_mg: parseFoodNumber(foodItem.Mg) * factor,
+    iron_mg: parseFoodNumber(foodItem.Fe) * factor,
+    zinc_mg: parseFoodNumber(foodItem.Zn) * factor,
+    selenium_ug: parseFoodNumber(foodItem.Se) * factor,
+    copper_mg: parseFoodNumber(foodItem.Cu) * factor,
+    manganese_mg: parseFoodNumber(foodItem.Mn) * factor,
+
+    vitaminA_ug: parseFoodNumber(foodItem.vitaminA) * factor,
+    thiamin_mg: parseFoodNumber(foodItem.thiamin) * factor,
+    riboflavin_mg: parseFoodNumber(foodItem.riboflavin) * factor,
+    niacin_mg: parseFoodNumber(foodItem.niacin) * factor,
+    vitaminC_mg: parseFoodNumber(foodItem.vitaminC) * factor,
+    vitaminE_mg: parseFoodNumber(foodItem.vitaminETotal) * factor
+  };
+}
+
 function mergeOrdinaryEntriesToRawInputs() {
   const merged = {};
   ordinaryEntries.forEach(entry => {
@@ -1651,6 +1705,72 @@ function mergeOrdinaryEntriesToRawInputs() {
     });
   });
   return merged;
+}
+
+function aggregateOrdinaryNutrients() {
+  const total = {
+    edible_g: 0,
+    energy_kcal: 0,
+    protein_g: 0,
+    fat_g: 0,
+    cho_g: 0,
+    fiber_g: 0,
+    cholesterol_mg: 0,
+
+    sodium_mg: 0,
+    potassium_mg: 0,
+    calcium_mg: 0,
+    phosphorus_mg: 0,
+    magnesium_mg: 0,
+    iron_mg: 0,
+    zinc_mg: 0,
+    selenium_ug: 0,
+    copper_mg: 0,
+    manganese_mg: 0,
+
+    vitaminA_ug: 0,
+    thiamin_mg: 0,
+    riboflavin_mg: 0,
+    niacin_mg: 0,
+    vitaminC_mg: 0,
+    vitaminE_mg: 0
+  };
+
+  ordinaryEntries.forEach(entry => {
+    const item = entry.foodItem;
+    if (!item) return;
+
+    const part = calcFoodNutrientContribution(item, entry.consumedGrams);
+    Object.keys(total).forEach(k => {
+      total[k] += part[k] || 0;
+    });
+  });
+
+  return total;
+}
+
+function derivePatternMetricsFromNutrients(total) {
+  const fatEnergy = total.fat_g * 9;
+  const choEnergy = total.cho_g * 4;
+  const proteinEnergy = total.protein_g * 4;
+  const totalEnergy = total.energy_kcal || (fatEnergy + choEnergy + proteinEnergy);
+
+  return {
+    energy_kcal: totalEnergy,
+    sodium_mg: total.sodium_mg,
+    fiber_g: total.fiber_g,
+    cholesterol_mg: total.cholesterol_mg,
+
+    // 当前数据库无法直接严格推出的量，先标记为 null
+    sfa_g: null,
+    sfa_pctE: null,
+    pufa_g: null,
+    omega6_g: null,
+    omega6_pctE: null,
+    seafood_omega3_mg: null,
+    plant_omega3_mg: null,
+    added_sugar_g: null
+  };
 }
 
 function renderOrdinaryEntries() {
@@ -1678,6 +1798,45 @@ function renderOrdinaryEntries() {
     .join("");
 
   ordinarySummary.innerHTML = rows || `<div class="small">No directly mappable raw inputs yet.</div>`;
+  renderOrdinaryNutrientSummary();
+}
+
+function renderOrdinaryNutrientSummary() {
+  if (!ordinaryEntries.length) {
+    ordinaryNutrientSummary.innerHTML = `<div class="small">Estimated macro- and micronutrient totals will appear here after foods are added.</div>`;
+    ordinaryDerivedSummary.innerHTML = `<div class="small">Pattern-related derived metrics will appear here after foods are added.</div>`;
+    return;
+  }
+
+  const total = aggregateOrdinaryNutrients();
+  const derived = derivePatternMetricsFromNutrients(total);
+
+  ordinaryNutrientSummary.innerHTML = `
+    <div class="small"><strong>Energy</strong>: ${total.energy_kcal.toFixed(1)} kcal</div>
+    <div class="small"><strong>Protein</strong>: ${total.protein_g.toFixed(1)} g</div>
+    <div class="small"><strong>Fat</strong>: ${total.fat_g.toFixed(1)} g</div>
+    <div class="small"><strong>Carbohydrate</strong>: ${total.cho_g.toFixed(1)} g</div>
+    <div class="small"><strong>Dietary fiber</strong>: ${total.fiber_g.toFixed(1)} g</div>
+    <div class="small"><strong>Sodium</strong>: ${total.sodium_mg.toFixed(1)} mg</div>
+    <div class="small"><strong>Potassium</strong>: ${total.potassium_mg.toFixed(1)} mg</div>
+    <div class="small"><strong>Calcium</strong>: ${total.calcium_mg.toFixed(1)} mg</div>
+    <div class="small"><strong>Iron</strong>: ${total.iron_mg.toFixed(2)} mg</div>
+    <div class="small"><strong>Zinc</strong>: ${total.zinc_mg.toFixed(2)} mg</div>
+    <div class="small"><strong>Selenium</strong>: ${total.selenium_ug.toFixed(2)} μg</div>
+    <div class="small"><strong>Vitamin C</strong>: ${total.vitaminC_mg.toFixed(2)} mg</div>
+    <div class="small"><strong>Vitamin A</strong>: ${total.vitaminA_ug.toFixed(2)} μg</div>
+    <div class="small"><strong>Vitamin E</strong>: ${total.vitaminE_mg.toFixed(2)} mg</div>
+  `;
+
+  ordinaryDerivedSummary.innerHTML = `
+    <div class="small"><strong>Derived sodium for pattern use</strong>: ${derived.sodium_mg.toFixed(1)} mg</div>
+    <div class="small"><strong>Derived dietary fiber for pattern use</strong>: ${derived.fiber_g.toFixed(1)} g</div>
+    <div class="small"><strong>Derived cholesterol</strong>: ${derived.cholesterol_mg.toFixed(1)} mg</div>
+    <div class="small"><strong>Saturated fat</strong>: unavailable in current JSON</div>
+    <div class="small"><strong>PUFA / omega-6</strong>: unavailable in current JSON</div>
+    <div class="small"><strong>Marine / plant omega-3</strong>: unavailable in current JSON</div>
+    <div class="small"><strong>Added sugar</strong>: unavailable in current JSON</div>
+  `;
 }
 
 function removeOrdinaryEntry(idx) {
@@ -1873,13 +2032,14 @@ document.getElementById("ordinaryAddBtn").addEventListener("click", () => {
     return;
   }
 
-  ordinaryEntries.push({
-    foodCode: foodItem.foodCode,
-    foodName: foodItem.foodName,
-    categoryLabel: foodItem.__categoryLabel,
-    consumedGrams: grams,
-    rawMap: inferRawInputsFromChineseFood(foodItem, grams)
-  });
+ ordinaryEntries.push({
+  foodCode: foodItem.foodCode,
+  foodName: foodItem.foodName,
+  categoryLabel: foodItem.__categoryLabel,
+  consumedGrams: grams,
+  rawMap: inferRawInputsFromChineseFood(foodItem, grams),
+  foodItem: foodItem
+});
 
   renderOrdinaryEntries();
 });
