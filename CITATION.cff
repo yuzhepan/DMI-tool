@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use DMI-tool or the accompanying analysis code, please cite this software and the associated manuscript."
+title: "DMI-tool: Dietary Matching Index calculator and reproducible analysis code"
+type: software
+authors:
+  - family-names: Pan
+    given-names: Yuzhe
+repository-code: "https://github.com/yuzhepan/DMI-tool"
+url: "https://github.com/yuzhepan/DMI-tool"
+license: MIT
+date-released: 2026-09-07
+abstract: >-
+  DMI-tool provides a browser-based Dietary Matching Index calculator and R
+  code for constructing eight pattern-specific indices, propagating dietary
+  uncertainty, evaluating spatial structure, and modelling country-level
+  associations with healthy life expectancy.

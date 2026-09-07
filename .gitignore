@@ -1,0 +1,18 @@
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+.DS_Store
+Thumbs.db
+
+# Generated analysis files
+outputs/
+multiple_imputation/
+GTWR_MI20/
+global_moran_*.rds
+local_moran_bootstrap_*.rds
+panel_boot.rds
+
+# Provider data are maintained outside version control
+data/raw/**
+!data/raw/README.md
