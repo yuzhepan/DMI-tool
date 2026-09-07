@@ -16,6 +16,7 @@ The analysis implements DMI versions of eight dietary patterns: AHEI, MSDPS, hPD
 - `DATA.md`: input-data structure, filenames and source notes.
 - `CITATION.cff`: citation metadata for this repository.
 - `data/cn_foods/`: food-composition resources used by the browser calculator.
+- `data/vendor/`: local JavaScript dependencies used by the browser calculator.
 
 ## Analysis workflow
 
