@@ -936,14 +936,14 @@ ref_hPDI <- tibble::tribble(
   "vegetables_g",     "positive",   180,   570,   NA,   TRUE,           "both", 5,
   "fruits_g",         "positive",   59,   318.6,   NA,   TRUE,           "both", 5,
   "nuts_g",           "positive",   2.8,  20,   NA,   TRUE,           "both", 5,
-  "legumes_g",        "positive",   2.8,  20,   NA,   TRUE,           "both", 5,
+  "legumes_g",        "positive",   5.6,  20,   NA,   TRUE,           "both", 5,
   "tea_coffee_g",     "positive",   360,  864,   NA,   TRUE,           "both", 5,
   "fruit_juice_g",    "negative",   198.4,  124,   NA,   TRUE,           "both", 5,
   "refined_grains_g", "negative",   30,   16.5,   NA,   TRUE,          "both",  5,
   "potatoes_g",       "negative",  130.2, 55.8,  NA,   TRUE,            "both", 5,
   "ssb_g",            "negative",  223.2, 24.8,  NA,   TRUE,            "both", 5,
   "dairy_g",          "negative",  563.5, 416.5,   NA,   TRUE,           "both", 5,
-  "eggs_g",           "negative",  11,  5.5,   NA,   TRUE,           "both", 5,
+  "eggs_g",           "negative",  27.5,  5.5,   NA,   TRUE,           "both", 5,
   "seafood_g",        "negative",  34,    17,   NA,   TRUE,          "both",  5,
   "red_meat_g",       "negative",  79.1, 33.9,  NA,   TRUE,            "both", 5,
   "processed_meat_g", "negative",  21.5, 8.6,  NA,   TRUE,            "both", 5
@@ -972,7 +972,7 @@ ref_DASH <- tibble::tribble(
   "nuts_legumes_g",   "positive",   17,     36.9,   NA,   TRUE,           "both", 5,
   "dairy_g",          "positive",   98,     367.5,   NA,   TRUE,           "both", 5,
   "sodium_mg",        "negative",   3500,   2900,   NA,   FALSE,          "both", 5,
-  "ssb_g",            "negative",   99.2,   24.8,   NA,   TRUE,           "both", 5,
+  "ssb_g",            "negative",   173.6,   24.8,   NA,   TRUE,           "both", 5,
   "meats_g",          "negative",   117,    39,   NA,   TRUE,           "both", 5
 )
 
@@ -1084,7 +1084,7 @@ ref_DBI <- tibble::tribble(
   "red_meat_g",       "negative",   150,  90,   NA,   TRUE,           "both", 8,
   "seafood_g",        "positive",   0,    75,   NA,   TRUE,           "both", 4,
   "eggs_g",           "positive",   0,    46,   NA,   TRUE,           "both", 8,
-  "sodium_mg",        "negative",   15000, 5000,   NA,   FALSE,          "both", 6
+  "sodium_mg",        "negative",   6000, 2000,   NA,   FALSE,          "both", 6
 )
 
 DMI_DBI_list <- build_DMI(DBI_wide, ref_DBI,
