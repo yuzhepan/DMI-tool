@@ -11,7 +11,7 @@ The analysis implements DMI versions of eight dietary patterns: AHEI, MSDPS, hPD
 ## Repository contents
 
 - `index.html`: browser-based DMI calculator with component probabilities and improvement summaries.
-- `DMI_reproducible_analysis.R`: complete paper analysis, from country-level dietary inputs through DMI construction, uncertainty propagation, spatial analyses and geographically and temporally weighted regression (GTWR).
+- `DMI.R`: complete paper analysis, from country-level dietary inputs through DMI construction, uncertainty propagation, spatial analyses and geographically and temporally weighted regression (GTWR).
 - `install_dependencies.R`: installs the R packages required by the analysis.
 - `DATA.md`: input-data structure, filenames and source notes.
 - `CITATION.cff`: citation metadata for this repository.
@@ -47,13 +47,13 @@ See [DATA.md](DATA.md) for the required input files and directory structure.
 Open the repository as the working directory and run:
 
 ```powershell
-& "D:\R\R-4.5.1\bin\Rscript.exe" .\DMI_reproducible_analysis.R
+& "D:\R\R-4.5.1\bin\Rscript.exe" .\DMI.R
 ```
 
 On other systems:
 
 ```bash
-Rscript DMI_reproducible_analysis.R
+Rscript DMI.R
 ```
 
 By default, source data are read from `data/raw`. Alternative locations can be supplied without editing the script:
