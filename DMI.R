@@ -2380,7 +2380,7 @@ panel0_combined_list <- lapply(panel0_imputed_list, function(completed_data) {
     mutate(HALE_LE = if_else(is.finite(LE) & LE > 0, HALE / LE, NA_real_))
 })
 
-### Use a common country set across all imputations so that Rubin pooling compares like with like.
+### Use a common country set across all imputations so that coefficient draws refer to the same locations.
 iso3_drop <- panel0_combined_list %>%
   map(~ filter(.x, HALE_LE > 1) %>% distinct(iso3) %>% pull(iso3)) %>%
   unlist(use.names = FALSE) %>%
@@ -3418,8 +3418,8 @@ for (imputation_id in seq_len(MI_M)) {
 
 plan(sequential)
 
-# 9. Pool GTWR estimates with Rubin's rules =======================================================
-## 9.1 Collect the estimates and within-imputation variances ================
+# 9. Pool GTWR Monte Carlo coefficient distributions ============================================
+## 9.1 Index the results from each imputed dataset ================
 result_index <- tidyr::crossing(
   imputation_id = seq_len(MI_M),
   pattern = GTWR_PATTERNS
@@ -3432,88 +3432,98 @@ result_index <- tidyr::crossing(
   )
 stopifnot(all(file.exists(result_index$result_file)))
 
-local_mi_results <- purrr::pmap_dfr(result_index, function(imputation_id, pattern, result_file) {
-  readRDS(result_file)$local_robust %>%
-    mutate(.imp = imputation_id, .before = 1)
-})
-
-stratum_mi_results <- purrr::pmap_dfr(result_index, function(imputation_id, pattern, result_file) {
-  readRDS(result_file)$stratum_robust %>%
-    mutate(.imp = imputation_id, .before = 1)
-})
-
-saveRDS(local_mi_results, file.path(GTWR_MI_DIR, "GTWR_local_all_imputations.rds"), compress = "xz")
-saveRDS(stratum_mi_results, file.path(GTWR_MI_DIR, "GTWR_stratum_all_imputations.rds"), compress = "xz")
-
-## 9.2 Implement Rubin's rules ================
-rubin_pool <- function(estimates, within_variances, conf_level = 0.95) {
-  valid <- is.finite(estimates) & is.finite(within_variances) & within_variances >= 0
-  estimates <- estimates[valid]
-  within_variances <- within_variances[valid]
-  m_used <- length(estimates)
-  if (!m_used) {
-    return(tibble(
-      estimate = NA_real_, std_error = NA_real_, conf_low = NA_real_, conf_high = NA_real_,
-      df = NA_real_, within_var = NA_real_, between_var = NA_real_, total_var = NA_real_,
-      fraction_missing_information = NA_real_, m_used = 0L
-    ))
+## 9.2 Summarise pooled draws using medians and 95% uncertainty intervals ================
+summarise_mc_draws <- function(draws_by_imputation) {
+  draws_by_imputation <- lapply(draws_by_imputation, function(x) x[is.finite(x)])
+  n_by_imputation <- lengths(draws_by_imputation)
+  if (any(n_by_imputation == 0L)) {
+    stop("No finite coefficient draws in at least one imputed dataset.")
   }
-
-  pooled_estimate <- mean(estimates)
-  within_var <- mean(within_variances)
-  between_var <- if (m_used > 1) stats::var(estimates) else 0
-  total_var <- within_var + (1 + 1 / m_used) * between_var
-  relative_increase <- if (within_var > 0) {
-    (1 + 1 / m_used) * between_var / within_var
-  } else if (between_var > 0) {
-    Inf
-  } else {
-    0
+  if (length(unique(n_by_imputation)) > 1L) {
+    warning("Unequal numbers of finite draws across imputations; inspect n_draws_min and n_draws_max.")
   }
-  df <- if (m_used <= 1 || relative_increase == 0) {
-    Inf
-  } else if (is.infinite(relative_increase)) {
-    m_used - 1
-  } else {
-    (m_used - 1) * (1 + 1 / relative_increase)^2
-  }
-  critical_value <- if (is.finite(df)) {
-    stats::qt(1 - (1 - conf_level) / 2, df = df)
-  } else {
-    stats::qnorm(1 - (1 - conf_level) / 2)
-  }
-  standard_error <- sqrt(total_var)
-
+  pooled_draws <- unlist(draws_by_imputation, use.names = FALSE)
+  qs <- stats::quantile(pooled_draws, c(0.5, 0.025, 0.975), names = FALSE)
   tibble(
-    estimate = pooled_estimate,
-    std_error = standard_error,
-    conf_low = pooled_estimate - critical_value * standard_error,
-    conf_high = pooled_estimate + critical_value * standard_error,
-    df = df,
-    within_var = within_var,
-    between_var = between_var,
-    total_var = total_var,
-    fraction_missing_information = if (relative_increase == 0) {
-      0
-    } else if (is.infinite(relative_increase)) {
-      1
-    } else {
-      (relative_increase + 2 / (df + 3)) / (relative_increase + 1)
-    },
-    m_used = m_used
+    estimate = qs[1], ui_low = qs[2], ui_high = qs[3],
+    m_used = length(n_by_imputation), n_draws = length(pooled_draws),
+    n_draws_min = min(n_by_imputation), n_draws_max = max(n_by_imputation)
   )
 }
 
-## 9.3 Pool local and stratum-level GTWR coefficients ================
-pooled_local_results <- local_mi_results %>%
-  group_by(DMI, age_band, iso3, year, female, term) %>%
-  group_modify(~ rubin_pool(.x$med, .x$within_var)) %>%
-  ungroup()
+read_gtwr_mc_stratum <- function(result_file, pattern, age) {
+  result <- readRDS(result_file)
+  key <- paste0(pattern, "_", age)
+  draws <- Filter(is.matrix, result$boot_coef[[key]])
+  point_keys <- result$local_robust %>%
+    filter(DMI == pattern, as.character(age_band) == age) %>%
+    distinct(iso3, year, female)
+  if (!length(draws) || !nrow(point_keys)) {
+    stop("Missing Monte Carlo draws or local point keys: ", result_file, " / ", key)
+  }
+  stopifnot(all(vapply(draws, nrow, integer(1)) == nrow(point_keys)))
+  list(point_keys = point_keys, draws = draws)
+}
 
-pooled_stratum_results <- stratum_mi_results %>%
-  group_by(DMI, age_band, term) %>%
-  group_modify(~ rubin_pool(.x$beta_med, .x$within_var)) %>%
-  ungroup()
+pool_gtwr_mc_stratum <- function(imputation_draws, pattern, age) {
+  point_keys <- imputation_draws[[1]]$point_keys
+  terms <- colnames(imputation_draws[[1]]$draws[[1]])
+  aligned_draws <- lapply(imputation_draws, function(x) {
+    indexed_keys <- x$point_keys %>% mutate(.row = row_number())
+    row_index <- left_join(point_keys, indexed_keys, by = c("iso3", "year", "female"))$.row
+    stopifnot(
+      !anyDuplicated(x$point_keys), nrow(x$point_keys) == nrow(point_keys),
+      length(row_index) == nrow(point_keys), !anyNA(row_index)
+    )
+    lapply(x$draws, function(coef_mat) {
+      stopifnot(setequal(colnames(coef_mat), terms))
+      coef_mat[row_index, terms, drop = FALSE]
+    })
+  })
+
+  local_results <- vector("list", length(terms))
+  stratum_results <- vector("list", length(terms))
+  for (j in seq_along(terms)) {
+    term_draws <- lapply(aligned_draws, function(draws) {
+      do.call(cbind, lapply(draws, function(coef_mat) coef_mat[, j]))
+    })
+    local_results[[j]] <- bind_cols(
+      point_keys,
+      bind_rows(lapply(seq_len(nrow(point_keys)), function(i) {
+        summarise_mc_draws(lapply(term_draws, function(x) x[i, ]))
+      }))
+    ) %>% mutate(DMI = pattern, age_band = age, term = terms[j], .before = 1)
+
+    ### Summarise locations within each draw before pooling across imputations.
+    spatial_medians <- lapply(term_draws, function(x) apply(x, 2, median, na.rm = TRUE))
+    stratum_results[[j]] <- summarise_mc_draws(spatial_medians) %>%
+      mutate(DMI = pattern, age_band = age, term = terms[j], .before = 1)
+  }
+  list(local = bind_rows(local_results), stratum = bind_rows(stratum_results))
+}
+
+## 9.3 Pool local and stratum-level GTWR coefficients across imputations ================
+pooled_results <- list()
+for (pattern_name in GTWR_PATTERNS) {
+  pattern_files <- result_index$result_file[result_index$pattern == pattern_name]
+  for (age in c("2-19", "20-64", "65+")) {
+    imputation_draws <- lapply(pattern_files, read_gtwr_mc_stratum, pattern = pattern_name, age = age)
+    key <- paste0(pattern_name, "_", age)
+    pooled_results[[key]] <- pool_gtwr_mc_stratum(imputation_draws, pattern_name, age)
+    rm(imputation_draws)
+  }
+}
+pooled_local_results <- bind_rows(lapply(pooled_results, `[[`, "local"))
+pooled_stratum_results <- bind_rows(lapply(pooled_results, `[[`, "stratum"))
+
+local_mi_results <- purrr::pmap_dfr(result_index, function(imputation_id, pattern, result_file) {
+  readRDS(result_file)$local_robust %>% mutate(.imp = imputation_id, .before = 1)
+})
+stratum_mi_results <- purrr::pmap_dfr(result_index, function(imputation_id, pattern, result_file) {
+  readRDS(result_file)$stratum_robust %>% mutate(.imp = imputation_id, .before = 1)
+})
+saveRDS(local_mi_results, file.path(GTWR_MI_DIR, "GTWR_local_all_imputations.rds"), compress = "xz")
+saveRDS(stratum_mi_results, file.path(GTWR_MI_DIR, "GTWR_stratum_all_imputations.rds"), compress = "xz")
 
 diagnostic_summary <- stratum_mi_results %>%
   summarise(
@@ -3526,13 +3536,13 @@ diagnostic_summary <- stratum_mi_results %>%
     .by = c(DMI, age_band)
   )
 
-saveRDS(pooled_local_results, file.path(GTWR_MI_DIR, "GTWR_local_Rubin_pooled.rds"), compress = "xz")
-saveRDS(pooled_stratum_results, file.path(GTWR_MI_DIR, "GTWR_stratum_Rubin_pooled.rds"), compress = "xz")
-readr::write_csv(pooled_local_results, file.path(GTWR_MI_DIR, "GTWR_local_Rubin_pooled.csv"))
-readr::write_csv(pooled_stratum_results, file.path(GTWR_MI_DIR, "GTWR_stratum_Rubin_pooled.csv"))
+saveRDS(pooled_local_results, file.path(GTWR_MI_DIR, "GTWR_local_MC_pooled.rds"), compress = "xz")
+saveRDS(pooled_stratum_results, file.path(GTWR_MI_DIR, "GTWR_stratum_MC_pooled.rds"), compress = "xz")
+readr::write_csv(pooled_local_results, file.path(GTWR_MI_DIR, "GTWR_local_MC_pooled.csv"))
+readr::write_csv(pooled_stratum_results, file.path(GTWR_MI_DIR, "GTWR_stratum_MC_pooled.csv"))
 readr::write_csv(diagnostic_summary, file.path(GTWR_MI_DIR, "GTWR_diagnostics_across_imputations.csv"))
 
-cat("All GTWR models and Rubin pooling steps are complete.\n")
+cat("All GTWR models and Monte Carlo pooling steps are complete.\n")
 cat("Results were saved under:", GTWR_MI_DIR, "\n")
 cat("Pipeline completed:", format(Sys.time()), "\n")
 }, finally = {

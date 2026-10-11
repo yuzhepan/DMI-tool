@@ -28,7 +28,7 @@ The R script performs the following steps:
 4. Reconstructs population-weighted HALE and life expectancy (LE) for the study age groups.
 5. Handles missing covariate data using multiple imputation by chained equations with predictive mean matching (`m = 20`).
 6. Calculates uncertainty-aware global Moran's I and local indicators of spatial association.
-7. Fits corrected great-circle GTWR models in each completed dataset and combines estimates using Rubin's rules.
+7. Fits corrected great-circle GTWR models with Monte Carlo uncertainty propagation within each imputed dataset, then summarises pooled coefficient distributions using their medians and 2.5th and 97.5th percentiles (95% uncertainty intervals, UIs).
 
 The primary GTWR outcome is HALE. The GTWR distance matrix uses great-circle spatial distance with `longlat = TRUE`, `lambda = 0.5` and `ksi = 0.5`.
 
@@ -68,7 +68,7 @@ The formal GTWR run uses 500 uncertainty draws. The number of draws and parallel
 ## Main outputs
 
 - `multiple_imputation/`: the `mice` object and 20 completed analysis datasets.
-- `GTWR_MI20/`: per-imputation GTWR objects and Rubin-pooled local and stratum-level estimates.
+- `GTWR_MI20/`: per-imputation GTWR objects and Monte Carlo-pooled local and stratum-level medians and 95% uncertainty intervals.
 - `outputs/health_data/`: reconstructed HALE and LE datasets.
 - `outputs/logs/DMI_reproducible_analysis_log.txt`: console output and warnings.
 - `global_moran_*.rds` and `local_moran_bootstrap_*.rds`: year-specific spatial results.
